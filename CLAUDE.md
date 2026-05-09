@@ -95,19 +95,51 @@ python -m src.main
 
 ## Что сейчас сделано
 
+**Phase 1 — инфраструктура (Готово):**
 - [x] Структура проекта
-- [x] Заглушки модулей
 - [x] Конфиг через env
-- [x] Базовый Telegram-бот (echo + /start /help)
-- [x] Procfile + railway.json
-- [ ] VK Ads API клиент
+- [x] Базовый Telegram-бот (/start /help, echo на текст и фото)
+- [x] Procfile + railway.json + деплой на Railway
+- [x] SQLAlchemy модели + async session
+- [x] Safety rules (с тестами)
+- [x] APScheduler с задачами (пока no-op)
+- [x] Claude analyzer + copywriter (классы готовы, не подключены)
+
+**Phase 2 — VK Auth + чтение (Готово):**
+- [x] OAuth-аутентификатор (`src/vk_ads/auth.py`) с автообновлением токена
+- [x] VK Ads клиент с read-методами: `get_account_info`, `get_balance`, `get_campaigns`, `get_campaign_stats`
+- [x] Команда `/status` показывает реальные данные кабинета
+- [x] Тесты с моками httpx (respx) — 32 прохода
+- [x] Корректная обработка 401 (сброс кэша токена + ретрай)
+
+**Phase 3 — Создание рекламы (TODO):**
 - [ ] Multipart upload картинок (критично — см. `.claude/skills/vk-ads/SKILL.md`)
-- [ ] APScheduler задачи
-- [ ] Claude analyzer
-- [ ] Claude copywriter с православным тоном
-- [ ] SQLite модели
-- [ ] Safety rules
-- [ ] Inline клавиатуры для подтверждений
+- [ ] `create_campaign`, `create_adgroup`, `create_banner` (3-шаговый процесс)
+- [ ] Возрастной сплит: автоматическое создание N групп на 1 кампанию с разными возрастными окнами (41-42, 43-44, ...)
+- [ ] Photo handler: пользователь шлёт фото с подписью → бот создаёт A/B-сетап
+
+**Phase 4 — Оптимизация (TODO):**
+- [ ] Подключить Claude analyzer к реальным данным
+- [ ] APScheduler jobs: реальный сбор метрик, утренние отчёты с настоящими цифрами
+- [ ] Многомерные A/B (возраст × пол × регион × креатив)
+- [ ] Многоруковый бандит для распределения бюджета между группами
+
+**Phase 5 — Полировка (TODO):**
+- [ ] Detection усталости креативов (падение CTR со временем)
+- [ ] Анализ по часам/дням недели
+- [ ] Inline клавиатуры в Telegram для подтверждений
+- [ ] Claude-инсайты в утренних отчётах
+- [ ] Текстовые команды через Claude (вместо «принял»)
+
+## Известные эндпоинты VK Ads API
+
+- **OAuth:** `POST https://target.my.com/api/v2/oauth2/token.json` (grant_type=client_credentials)
+- **API base:** `https://target.my.com/api/v2/`
+- **Account:** `GET /users/current.json`
+- **Кампании:** `GET /campaigns.json` (поля: id, name, status, budget_limit_day)
+- **Стата:** `GET /statistics/campaigns/{ids}/day.json` (date_from, date_to)
+
+⚠️ Бюджеты VK хранит в **копейках** — конверсия rub*100 при записи, /100 при чтении.
 
 ## Coding conventions
 

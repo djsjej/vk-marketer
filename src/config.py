@@ -18,9 +18,17 @@ class Settings(BaseSettings):
     telegram_owner_id: int = Field(..., description="Telegram user_id владельца")
 
     # --- VK Реклама ---
-    vk_ads_token: str = Field(..., description="Access token VK Ads API")
-    vk_ads_account_id: int = Field(..., description="ID рекламного аккаунта")
-    vk_ads_client_id: int | None = Field(None, description="ID клиента (для агентств)")
+    # Бот поддерживает два режима аутентификации:
+    # 1. OAuth (предпочтительный): задаём VK_ADS_OAUTH_CLIENT_ID и VK_ADS_OAUTH_CLIENT_SECRET.
+    #    Бот сам получает access_token через POST на target.my.com/api/v2/oauth2/token.json
+    #    и обновляет его автоматически каждые ~24 часа.
+    # 2. Прямой токен (legacy): задаём VK_ADS_TOKEN если уже есть готовый access_token.
+    #    Если задан — используется напрямую без OAuth-обновления.
+    vk_ads_token: str | None = Field(None, description="Access token (если уже есть)")
+    vk_ads_oauth_client_id: str | None = Field(None, description="OAuth client_id")
+    vk_ads_oauth_client_secret: str | None = Field(None, description="OAuth client_secret")
+    vk_ads_account_id: int = Field(..., description="ID рекламного кабинета")
+    vk_ads_agency_client_id: int | None = Field(None, description="ID клиента (для агентств)")
 
     # --- Claude ---
     anthropic_api_key: str = Field(..., description="API key Anthropic")
@@ -45,6 +53,21 @@ class Settings(BaseSettings):
 
     # --- Logging ---
     log_level: str = Field("INFO")
+
+    @property
+    def has_vk_oauth(self) -> bool:
+        """OAuth настроен (можем сами генерить access_token)?"""
+        return bool(self.vk_ads_oauth_client_id and self.vk_ads_oauth_client_secret)
+
+    @property
+    def has_vk_static_token(self) -> bool:
+        """Статический токен задан (и не плейсхолдер)?"""
+        return bool(self.vk_ads_token and self.vk_ads_token != "placeholder")
+
+    @property
+    def vk_configured(self) -> bool:
+        """VK Ads клиент может работать (есть либо OAuth, либо прямой токен)."""
+        return self.has_vk_oauth or self.has_vk_static_token
 
 
 # Singleton — импортируется модулями
