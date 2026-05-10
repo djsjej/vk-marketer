@@ -127,7 +127,7 @@ class VKAdsClient:
         if response.status_code == 401 and self.auth is not None:
             # Токен мог стухнуть — сбросим кэш и повторим один раз
             logger.warning("Получили 401 — сбрасываю кэш токена и повторяю запрос")
-            self.auth.invalidate()
+            await self.auth.invalidate()
             token = await self._get_token()
             headers["Authorization"] = f"Bearer {token}"
             async with httpx.AsyncClient(timeout=30.0) as client:

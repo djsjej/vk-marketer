@@ -140,7 +140,7 @@ async def test_authenticator_invalidate_forces_refresh():
 
     auth = VKAdsAuthenticator(client_id="cid", client_secret="csecret")
     assert await auth.get_access_token() == "first"
-    auth.invalidate()
+    await auth.invalidate()
     assert await auth.get_access_token() == "second"
 
 
