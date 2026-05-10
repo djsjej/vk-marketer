@@ -160,7 +160,7 @@ def test_build_ad_group_includes_age_list():
         package_id=3122,
         copy=AdCopy(title="Т", text="Текст", about="О нас"),
         content_id=999,
-        community_url_id=12345,
+        internal_url_id=12345,
     )
     assert grp["targetings"]["age"]["age_list"] == [41, 42]
     assert grp["targetings"]["sex"] == ["female"]
@@ -182,7 +182,7 @@ def test_build_ad_group_truncates_long_text():
         package_id=3122,
         copy=AdCopy(title=long_title, text=long_text, about=long_about),
         content_id=1,
-        community_url_id=1,
+        internal_url_id=1,
     )
     banner = grp["banners"][0]
     assert len(banner["textblocks"]["title_40_vkads"]["text"]) == 40
@@ -212,10 +212,17 @@ def test_parse_create_response_raises_when_no_id():
 @pytest.mark.asyncio
 @respx.mock
 async def test_create_age_split_campaign_full_flow():
-    """End-to-end проверка: загрузка + POST ad_plan + парсинг."""
+    """End-to-end проверка: регистрация URL + загрузка картинки + POST ad_plan + парсинг."""
     respx.post(OAUTH_URL).mock(
         return_value=httpx.Response(
             200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    # GET /api/v1/urls/?url=... — регистрация URL в кабинете
+    respx.get("https://ads.vk.com/api/v1/urls/").mock(
+        return_value=httpx.Response(
+            200,
+            json={"id": 12345, "url": "https://vk.com/test", "url_object_id": 67890},
         )
     )
     respx.post(VK_CONTENT_STATIC_URL).mock(
@@ -243,7 +250,7 @@ async def test_create_age_split_campaign_full_flow():
         image_bytes=b"img",
         theme="test theme",
         copy=AdCopy(title="Т", text="Длинный текст", about="О"),
-        community_url_id=12345,
+        community_url="https://vk.com/test",
         age_splits=[(41, 42), (43, 44)],
         daily_budget_rub_per_group=200,
     )
@@ -257,7 +264,8 @@ async def test_create_age_split_campaign_full_flow():
     body = request.read().decode()
     assert "ad_plans" not in body  # тело не содержит лишнего
     assert "41" in body and "42" in body and "43" in body and "44" in body
-    assert "12345" in body  # community_url_id
+    # internal_url_id из мока (12345), а не VK community ID
+    assert "12345" in body
     assert "555" in body  # content_id из загрузки
 
 
@@ -270,7 +278,7 @@ async def test_create_age_split_campaign_rejects_empty_splits():
             image_bytes=b"x",
             theme="t",
             copy=AdCopy(title="T", text="T", about="T"),
-            community_url_id=1,
+            community_url="https://vk.com/test",
             age_splits=[],
         )
 

@@ -77,7 +77,7 @@ class AdCreator:
         image_bytes: bytes,
         theme: str,
         copy: AdCopy,
-        community_url_id: int,
+        community_url: str,
         age_splits: list[tuple[int, int]],
         daily_budget_rub_per_group: int = 200,
         sex: list[str] | None = None,
@@ -90,16 +90,13 @@ class AdCreator:
         """Создать кампанию с возрастным сплитом за один POST.
 
         Args:
-            image_bytes: байты картинки (jpeg/png), из которой делаем баннер.
-                         VK требует разные размеры (256x256, 600x600, 1080x607);
-                         в MVP грузим один файл и используем как есть для image_600x600.
-                         Полный мульти-размер будет в Phase 4.
+            image_bytes: байты картинки для баннера.
             theme: краткое описание темы (для имени кампании в кабинете).
             copy: тексты объявления (title, text, about, cta).
-            community_url_id: VK ID сообщества (число из URL после /club или
-                              из настроек кабинета — uniq id "ad_object_id").
-            age_splits: список окон возраста, например [(41,42), (43,44), (45,46)].
-                        На каждое окно создастся своя ad_group со своим баннером.
+            community_url: полный URL сообщества (https://vk.com/pomolimsy или
+                          https://vk.com/club216409501). VK сначала вернёт
+                          внутренний URL-ID, который мы используем как ad_object_id.
+            age_splits: список окон возраста, например [(41,42), (43,44)].
             daily_budget_rub_per_group: дневной бюджет в рублях на одну группу.
             sex: ['male', 'female'] или один из, по умолчанию оба.
             geo_regions: ID регионов VK, по умолчанию [188] (Россия).
@@ -121,7 +118,20 @@ class AdCreator:
         if geo_regions is None:
             geo_regions = [188]  # Россия
 
-        # 1. Грузим картинку → content_id
+        # 1. Регистрируем URL в кабинете → получаем внутренний url_id
+        # ВАЖНО: VK не принимает численный VK community ID как ad_object_id —
+        # он хочет именно внутренний идентификатор кабинета, выданный при
+        # регистрации URL через /api/v1/urls/.
+        logger.info(f"Регистрирую URL в кабинете: {community_url}")
+        try:
+            url_info = await self.vk.get_or_register_url(community_url)
+            internal_url_id = int(url_info["id"])
+        except Exception as e:
+            raise AdCreatorError(
+                f"Не смог зарегистрировать URL {community_url}: {e}"
+            ) from e
+
+        # 2. Грузим картинку → content_id
         logger.info(f"Загружаю картинку ({len(image_bytes)} байт) в VK")
         try:
             content_id = await self.vk.upload_image(
@@ -130,13 +140,12 @@ class AdCreator:
         except Exception as e:
             raise AdCreatorError(f"Не смог загрузить картинку: {e}") from e
 
-        # 2. Собираем payload ad_plan с вложенными группами и баннерами
+        # 3. Собираем payload ad_plan с вложенными группами и баннерами
         today = date.today()
         end_date = today + timedelta(days=days_duration)
         date_start = today.isoformat()
         date_end = end_date.isoformat()
 
-        # Имя кампании — короткое, чтобы было видно в кабинете
         safe_theme = theme[:50].strip()
         campaign_name = f"{campaign_name_prefix} | {safe_theme}"
 
@@ -154,7 +163,7 @@ class AdCreator:
                 package_id=package_id,
                 copy=copy,
                 content_id=content_id,
-                community_url_id=community_url_id,
+                internal_url_id=internal_url_id,
             ))
 
         ad_plan_payload = {
@@ -166,7 +175,7 @@ class AdCreator:
             "budget_limit_day": daily_budget_rub_per_group * len(age_splits),
             "max_price": 0,
             "objective": "socialengagement",
-            "ad_object_id": community_url_id,
+            "ad_object_id": internal_url_id,
             "ad_object_type": "url",
             "ad_groups": ad_groups_payload,
         }
@@ -176,14 +185,21 @@ class AdCreator:
             f"{len(age_splits)} групп, "
             f"бюджет {ad_plan_payload['budget_limit_day']} ₽/день"
         )
+        logger.info(
+            f"ad_object_id={internal_url_id}, ad_object_type=url, "
+            f"objective=socialengagement, package_id={package_id}, "
+            f"content_id={content_id}"
+        )
+        # Полный payload в DEBUG (для разбора что VK ревнует к чему)
+        import json as _json
+        logger.debug(f"Full payload: {_json.dumps(ad_plan_payload, ensure_ascii=False)[:2000]}")
 
-        # 3. Один POST на всю иерархию
+        # 4. Один POST на всю иерархию
         try:
             result = await self.vk.create_ad_plan(ad_plan_payload)
         except Exception as e:
             raise AdCreatorError(f"VK не принял ad_plan: {e}") from e
 
-        # 4. Парсим ответ
         return self._parse_create_response(result)
 
     @staticmethod
@@ -198,7 +214,7 @@ class AdCreator:
         package_id: int,
         copy: AdCopy,
         content_id: int,
-        community_url_id: int,
+        internal_url_id: int,
     ) -> dict:
         """Собрать payload одной ad_group с одним баннером внутри."""
         return {
@@ -216,7 +232,7 @@ class AdCreator:
             "banners": [
                 {
                     "name": f"{name} | {copy.title[:30]}",
-                    "urls": {"primary": {"id": community_url_id}},
+                    "urls": {"primary": {"id": internal_url_id}},
                     "textblocks": {
                         "title_40_vkads": {"text": copy.title[:40]},
                         "text_2000": {"text": copy.text[:2000]},

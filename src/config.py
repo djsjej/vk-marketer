@@ -32,8 +32,18 @@ class Settings(BaseSettings):
     vk_community_url_id: int | None = Field(
         None,
         description=(
-            "VK ID сообщества для рекламы (ad_object_id). "
-            "Для Зеленецкого монастыря и Спиридона разные — настраивается в Railway."
+            "VK ID сообщества — численный (например 216409501). "
+            "Используется чтобы построить URL https://vk.com/club{id} "
+            "если vk_community_url не задан напрямую."
+        ),
+    )
+    vk_community_url: str | None = Field(
+        None,
+        description=(
+            "Полный URL сообщества для рекламы (https://vk.com/pomolimsy). "
+            "Используется приоритетно над vk_community_url_id. "
+            "VK Ads сначала регистрирует этот URL и возвращает внутренний "
+            "URL-ID, который потом ставится в ad_object_id."
         ),
     )
 

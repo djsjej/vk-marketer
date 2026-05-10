@@ -211,10 +211,12 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         return
 
-    if settings.vk_community_url_id is None:
+    if settings.vk_community_url is None and settings.vk_community_url_id is None:
         await update.message.reply_text(
-            "⚠️ Не задан `VK_COMMUNITY_URL_ID` в env vars Railway.\n\n"
-            "Это VK ID сообщества, на которое будет вестись реклама.",
+            "⚠️ Не задано сообщество для рекламы.\n\n"
+            "В Railway env vars нужно задать ОДНО из:\n"
+            "• `VK_COMMUNITY_URL` = `https://vk.com/pomolimsy` (приоритет)\n"
+            "• `VK_COMMUNITY_URL_ID` = `216409501` (fallback)",
             parse_mode="Markdown",
         )
         return
@@ -336,6 +338,12 @@ async def _show_campaign_preview(
 
     text_preview = chosen.text[:400] + ("…" if len(chosen.text) > 400 else "")
 
+    # Куда вести (URL приоритет над ID)
+    target_display = (
+        settings.vk_community_url
+        or f"vk.com/club{settings.vk_community_url_id}"
+    )
+
     preview = (
         f"📋 *Выбран вариант:*\n\n"
         f"*Заголовок:* {chosen.title}\n"
@@ -347,7 +355,7 @@ async def _show_campaign_preview(
         + f"\n\n*Бюджет:* {daily_per_group} ₽/день × {len(splits)} групп = "
         f"*{daily_total} ₽/день*\n"
         f"*Длительность:* 7 дней\n"
-        f"*Куда:* VK сообщество `{settings.vk_community_url_id}`\n\n"
+        f"*Куда:* `{target_display}`\n\n"
         "Создавать?"
     )
 
@@ -440,12 +448,18 @@ async def _create_campaign_from_pending(
     creator = AdCreator(client)
     copy: AdCopy = pending["copy"]
 
+    # Используем явный URL если он задан, иначе строим из ID
+    community_url = (
+        settings.vk_community_url
+        or f"https://vk.com/club{settings.vk_community_url_id}"
+    )
+
     try:
         summary = await creator.create_age_split_campaign(
             image_bytes=pending["image_bytes"],
             theme=copy.title,
             copy=copy,
-            community_url_id=settings.vk_community_url_id,  # type: ignore[arg-type]
+            community_url=community_url,
             age_splits=DEFAULT_AGE_SPLITS_ORTHODOX,
             daily_budget_rub_per_group=settings.test_campaign_budget_rub,
             campaign_name_prefix="bot-test",

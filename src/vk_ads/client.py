@@ -157,6 +157,87 @@ class VKAdsClient:
     # - Баланс: эндпоинт не задокументирован, либо его нет для direct-кабинетов
     # ------------------------------------------------------------------
 
+    async def get_or_register_url(self, url: str) -> dict:
+        """Регистрирует URL/сообщество в кабинете VK Ads и возвращает его внутренний ID.
+
+        Это критический шаг для создания кампаний с objective='socialengagement':
+        VK хочет в `ad_object_id` НЕ численный VK community ID (типа 216409501),
+        а внутренний URL-ID кабинета (типа 5439821), который выдаётся при
+        первом обращении к /api/v1/urls/?url=...
+
+        Сначала пробуем v1 GET (старый рабочий способ из n8n-кампаний).
+        Если v1 не сработал — POST /api/v2/urls.json (новый способ для нового кабинета).
+
+        Args:
+            url: полный URL сообщества (https://vk.com/pomolimsy или
+                 https://vk.com/club216409501).
+
+        Returns:
+            Dict с полем `id` — внутренний URL-ID кабинета.
+
+        Raises:
+            VKAdsAPIError: если оба способа не сработали.
+        """
+        token = await self._get_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # Попытка 1: GET /api/v1/urls/?url=...
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.get(
+                    "https://ads.vk.com/api/v1/urls/",
+                    headers=headers,
+                    params={"url": url},
+                )
+            logger.info(
+                f"V1 URL register: status={response.status_code}, "
+                f"body={response.text[:500]}"
+            )
+            if response.status_code == 200:
+                try:
+                    data = response.json()
+                    if isinstance(data, dict) and "id" in data:
+                        logger.info(
+                            f"✅ URL '{url}' зарегистрирован v1, "
+                            f"id={data['id']}, url_object_id={data.get('url_object_id')}"
+                        )
+                        return data
+                except ValueError:
+                    pass
+        except httpx.RequestError as e:
+            logger.warning(f"V1 URL register сетевая ошибка: {e}")
+
+        # Попытка 2: POST /api/v2/urls.json с body {"url": "..."}
+        logger.info("V1 не сработал, пробую V2 POST /urls.json")
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://ads.vk.com/api/v2/urls.json",
+                    headers={**headers, "Content-Type": "application/json"},
+                    json={"url": url},
+                )
+            logger.info(
+                f"V2 URL register: status={response.status_code}, "
+                f"body={response.text[:500]}"
+            )
+            if response.status_code in (200, 201):
+                try:
+                    data = response.json()
+                    if isinstance(data, dict) and "id" in data:
+                        logger.info(
+                            f"✅ URL '{url}' зарегистрирован v2, id={data['id']}"
+                        )
+                        return data
+                except ValueError:
+                    pass
+        except httpx.RequestError as e:
+            logger.warning(f"V2 URL register сетевая ошибка: {e}")
+
+        raise VKAdsAPIError(
+            f"Не смог зарегистрировать URL '{url}' ни через v1, ни через v2. "
+            f"Проверь что URL валидный и доступен."
+        )
+
     async def get_balance(self) -> float | None:
         """Баланс кабинета в рублях. None если не удалось распарсить.
 
