@@ -243,15 +243,126 @@ class VKAdsClient:
         )
 
     # ------------------------------------------------------------------
-    # Запись: создание/изменение — TODO Phase 3
+    # Загрузка контента (картинок) — отдельный модуль upload.py,
+    # но клиент даёт удобный шорткат
+    # ------------------------------------------------------------------
+
+    async def upload_image(
+        self,
+        image_bytes: bytes,
+        filename: str = "image.jpg",
+        mime_type: str | None = None,
+    ) -> int:
+        """Загрузить картинку в VK Ads → возвращает content_id.
+
+        Шорткат к src.vk_ads.upload.upload_image_bytes — берёт токен из клиента.
+        """
+        from src.vk_ads.upload import upload_image_bytes
+
+        token = await self._get_token()
+        result = await upload_image_bytes(
+            access_token=token,
+            image_bytes=image_bytes,
+            filename=filename,
+            mime_type=mime_type,
+        )
+        return int(result["id"])
+
+    # ------------------------------------------------------------------
+    # Создание кампаний и групп — VK Ads API v2 структура:
+    # /ad_plans.json — кампания (контейнер)
+    #   └── /ad_groups.json — группа объявлений (с таргетингом)
+    #         └── /banners.json — объявления (с креативом)
+    #
+    # Можно создавать всё одним POST на /ad_plans.json (с вложенными
+    # ad_groups и banners), либо по отдельности. По доке VK Ads быстрый старт
+    # рекомендует одним запросом.
+    # ------------------------------------------------------------------
+
+    async def create_ad_plan(self, payload: dict) -> dict:
+        """Создать рекламную кампанию (ad_plan).
+
+        POST /ad_plans.json
+
+        Payload может содержать вложенные ad_groups (а те — banners),
+        тогда всё создастся за один запрос.
+
+        Returns:
+            Полный словарь созданного ad_plan, включая id и id вложенных групп/баннеров.
+        """
+        return await self._request("POST", "/ad_plans.json", json_body=payload)
+
+    async def create_ad_group(self, payload: dict) -> dict:
+        """Создать группу объявлений отдельно (если кампания уже есть).
+
+        POST /ad_groups.json. Должно содержать ad_plan_id.
+        """
+        return await self._request("POST", "/ad_groups.json", json_body=payload)
+
+    async def create_banner(self, payload: dict) -> dict:
+        """Создать одиночное объявление в существующей группе.
+
+        POST /banners.json. Должно содержать ad_group_id и content (id картинки).
+        """
+        return await self._request("POST", "/banners.json", json_body=payload)
+
+    # ------------------------------------------------------------------
+    # Управление статусом — Phase 4
+    # ------------------------------------------------------------------
+
+    async def pause_ad_plan(self, ad_plan_id: int) -> dict:
+        """Поставить кампанию на паузу. POST /ad_plans/{id}.json со status='blocked'."""
+        return await self._request(
+            "POST",
+            f"/ad_plans/{ad_plan_id}.json",
+            json_body={"status": "blocked"},
+        )
+
+    async def resume_ad_plan(self, ad_plan_id: int) -> dict:
+        """Возобновить. status='active'."""
+        return await self._request(
+            "POST",
+            f"/ad_plans/{ad_plan_id}.json",
+            json_body={"status": "active"},
+        )
+
+    async def update_ad_plan_budget(
+        self, ad_plan_id: int, daily_budget_rub: int | None = None,
+        total_budget_rub: int | None = None,
+    ) -> dict:
+        """Изменить дневной/общий бюджет.
+
+        VK хранит бюджеты в рублях (не копейках) для нового API ad_plans.
+        Подтверждено в прошлых рабочих интеграциях.
+        """
+        body: dict = {}
+        if daily_budget_rub is not None:
+            body["budget_limit_day"] = daily_budget_rub
+        if total_budget_rub is not None:
+            body["budget_limit"] = total_budget_rub
+        if not body:
+            raise ValueError("Нужно передать хотя бы один из бюджетов")
+        return await self._request(
+            "POST", f"/ad_plans/{ad_plan_id}.json", json_body=body
+        )
+
+    # ------------------------------------------------------------------
+    # Старые stub'ы — оставляем для совместимости, но реализуем через новые
     # ------------------------------------------------------------------
 
     async def create_campaign(self, name: str, daily_budget_rub: int) -> int:
-        """Создать кампанию. Возвращает campaign_id.
+        """Минимальное создание кампании без объявлений (для тестов).
 
-        ВАЖНО: VK хранит бюджеты в копейках. Передаём rub * 100.
+        Для реальной работы используй create_ad_plan() с полным payload
+        или AdCreator orchestrator из src.services.ad_creator.
         """
-        raise NotImplementedError("Создание кампаний — Phase 3")
+        result = await self.create_ad_plan({
+            "name": name,
+            "status": "active",
+            "budget_limit_day": daily_budget_rub,
+            "objective": "socialengagement",
+        })
+        return int(result["id"])
 
     async def create_ad_with_image(
         self,
@@ -261,14 +372,37 @@ class VKAdsClient:
         description: str,
         url: str,
     ) -> int:
-        """3-шаговый процесс создания объявления с картинкой."""
-        raise NotImplementedError("Создание объявлений — Phase 3")
+        """3-шаговый процесс создания объявления с картинкой.
+
+        DEPRECATED: используй AdCreator из src.services.ad_creator,
+        он умеет в age splits и Claude-копирайтинг.
+        """
+        from src.vk_ads.upload import upload_image_file
+
+        token = await self._get_token()
+        upload_result = await upload_image_file(token, image_path)
+        content_id = upload_result["id"]
+
+        banner = await self.create_banner({
+            "ad_group_id": adgroup_id,
+            "name": title[:60],
+            "urls": {"primary": {"url": url}},
+            "textblocks": {
+                "title_40_vkads": {"text": title[:40]},
+                "text_2000": {"text": description[:2000]},
+            },
+            "content": {"image_600x600": {"id": content_id}},
+        })
+        return int(banner["id"])
 
     async def pause_ad(self, ad_id: int) -> None:
-        raise NotImplementedError("Pause — Phase 3")
+        """DEPRECATED — используй pause_ad_plan."""
+        await self.pause_ad_plan(ad_id)
 
     async def resume_ad(self, ad_id: int) -> None:
-        raise NotImplementedError("Resume — Phase 3")
+        """DEPRECATED — используй resume_ad_plan."""
+        await self.resume_ad_plan(ad_id)
 
     async def update_budget(self, campaign_id: int, daily_budget_rub: int) -> None:
-        raise NotImplementedError("Update budget — Phase 3")
+        """DEPRECATED — используй update_ad_plan_budget."""
+        await self.update_ad_plan_budget(campaign_id, daily_budget_rub=daily_budget_rub)

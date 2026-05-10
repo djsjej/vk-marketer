@@ -112,11 +112,16 @@ python -m src.main
 - [x] Тесты с моками httpx (respx) — 32 прохода
 - [x] Корректная обработка 401 (сброс кэша токена + ретрай)
 
-**Phase 3 — Создание рекламы (TODO):**
-- [ ] Multipart upload картинок (критично — см. `.claude/skills/vk-ads/SKILL.md`)
-- [ ] `create_campaign`, `create_adgroup`, `create_banner` (3-шаговый процесс)
-- [ ] Возрастной сплит: автоматическое создание N групп на 1 кампанию с разными возрастными окнами (41-42, 43-44, ...)
-- [ ] Photo handler: пользователь шлёт фото с подписью → бот создаёт A/B-сетап
+**Phase 3 — Создание рекламы (Готово):**
+- [x] Multipart upload картинок (`src/vk_ads/upload.py`) — POST на `/content/static.json`
+- [x] `create_ad_plan`, `create_ad_group`, `create_banner` методы в client
+- [x] Возрастной A/B сплит: `AdCreator.create_age_split_campaign()` создаёт N групп с разными age_list одним POST на /ad_plans.json
+- [x] Pause/resume/update_budget методы для управления кампаниями
+- [x] Photo handler: пользователь шлёт фото с подписью → бот показывает превью + inline-кнопки [Создать] [Отмена] → создаёт кампанию
+- [x] Fallback копирайтер (если Claude недоступен — берёт текст из подписи)
+- [x] Тесты с моками httpx (50 проходов суммарно)
+- [ ] Полный мульти-размер картинок (256x256, 600x600, 1080x607) — пока используем один размер 600x600
+- [ ] Claude-копирайтер с религиозным тоном — есть код, но не подключён в основной flow
 
 **Phase 4 — Оптимизация (TODO):**
 - [ ] Подключить Claude analyzer к реальным данным

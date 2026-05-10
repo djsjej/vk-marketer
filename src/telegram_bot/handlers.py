@@ -1,25 +1,55 @@
-"""Обработчики команд и сообщений от пользователя."""
+"""Обработчики команд и сообщений от пользователя.
+
+Phase 3 — полноценный flow создания тестовой кампании по фото:
+1. /start, /help — служебные
+2. /status — реальные данные кабинета через VK Ads API
+3. handle_photo — приёмка фото с подписью + inline-подтверждение
+4. on_callback — обработка кнопок [Создать] / [Отмена]
+5. handle_text — заглушка под Phase 4 (текстовые команды через Claude)
+"""
 
 import logging
+from io import BytesIO
 
-from telegram import Update
+from telegram import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    Update,
+)
 from telegram.ext import ContextTypes
 
 from src.config import settings
+from src.services.ad_creator import (
+    DEFAULT_AGE_SPLITS_ORTHODOX,
+    AdCreator,
+    AdCreatorError,
+)
+from src.claude_brain.copywriter import fallback_copy_from_caption
 from src.vk_ads.auth import VKAdsAuthError
 from src.vk_ads.client import VKAdsAPIError, VKAdsClient
 
 logger = logging.getLogger(__name__)
 
 
+# Ключи для context.user_data — храним фото между фото-сообщением и нажатием кнопки
+_PENDING_KEY = "pending_campaign"
+
+# Префикс callback_data для inline-кнопок
+_CB_CONFIRM = "campaign:confirm"
+_CB_CANCEL = "campaign:cancel"
+
+
+# ============================================================================
+# Простые команды
+# ============================================================================
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка /start."""
     await update.message.reply_text(
         "🤖 Я — твой VK-маркетолог.\n\n"
         "Что умею:\n"
-        "• Принимать картинки + темы для рекламы\n"
-        "• Запускать A/B тесты\n"
-        "• Мониторить и отключать слабые\n"
+        "• Принимать фото с подписью → создать тестовую кампанию с возрастным A/B сплитом\n"
+        "• Мониторить и автоотключать слабые объявления\n"
         "• Масштабировать удачные\n"
         "• Каждое утро присылать отчёт\n\n"
         "Команды: /help, /status"
@@ -27,20 +57,21 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка /help."""
     await update.message.reply_text(
         "📋 Команды:\n\n"
         "/start — приветствие\n"
         "/help — это сообщение\n"
         "/status — реальный статус кабинета VK\n\n"
-        "Также можешь:\n"
-        "• Прислать фото с подписью — создам тестовые объявления (Phase 3)\n"
-        "• Написать текстом тему — добавлю в очередь (Phase 3)"
+        "📸 Прислать фото с подписью — бот предложит создать тестовую кампанию:\n"
+        "5 возрастных групп (41-42, 43-44, 45-46, 47-48, 49-50)\n"
+        "бюджет 200 ₽/день на группу = 1000 ₽/день общий\n"
+        "длительность 7 дней\n\n"
+        "Перед созданием бот спросит подтверждение."
     )
 
 
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка /status — реальный статус кабинета через VK Ads API."""
+    """Реальный статус кабинета через VK Ads API."""
     if not settings.vk_configured:
         await update.message.reply_text(
             "⚠️ VK Ads клиент не настроен.\n\n"
@@ -54,7 +85,6 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("⚠️ Не удалось создать VK Ads клиент")
         return
 
-    # Сначала покажем «думаю», чтобы пользователь видел отклик
     placeholder = await update.message.reply_text("⏳ Запрашиваю статус кабинета...")
 
     try:
@@ -106,35 +136,197 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode="Markdown",
         )
     except Exception as e:
-        logger.exception(f"Неожиданная ошибка в /status")
+        logger.exception("Неожиданная ошибка в /status")
         await placeholder.edit_text(f"❌ Неожиданная ошибка: {e}")
 
 
+# ============================================================================
+# Photo flow: фото с подписью → подтверждение → создание кампании
+# ============================================================================
+
+
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка присланной фотографии (для будущей рекламы)."""
+    """Получили фото — скачиваем, парсим подпись, спрашиваем подтверждение."""
+    if not settings.vk_configured:
+        await update.message.reply_text(
+            "⚠️ Сначала настрой VK Ads OAuth в Railway env vars."
+        )
+        return
+
+    if settings.vk_community_url_id is None:
+        await update.message.reply_text(
+            "⚠️ Не задан `VK_COMMUNITY_URL_ID` в env vars Railway.\n\n"
+            "Это VK ID сообщества, на которое будет вестись реклама. "
+            "Без него я не знаю, куда направлять трафик. Задай и попробуй ещё раз.",
+            parse_mode="Markdown",
+        )
+        return
+
     photo = update.message.photo[-1]  # самая большая версия
-    caption = update.message.caption or ""
+    caption = (update.message.caption or "").strip()
 
+    if not caption:
+        await update.message.reply_text(
+            "📝 К фото нужна подпись с темой рекламы.\n\n"
+            "Первая строка станет заголовком (макс 40 символов), "
+            "остальное — основным текстом объявления."
+        )
+        return
+
+    # Скачиваем фото в память
     logger.info(
-        f"Получено фото от owner: file_id={photo.file_id}, "
-        f"size={photo.width}x{photo.height}, caption='{caption[:50]}...'"
+        f"Получено фото: file_id={photo.file_id}, "
+        f"size={photo.width}x{photo.height}, caption='{caption[:60]}'"
     )
 
-    # TODO: Сохранить фото локально, передать в VK Ads upload
-    await update.message.reply_text(
-        f"✅ Получил фото ({photo.width}×{photo.height}).\n"
-        f"Подпись: «{caption[:100]}»\n\n"
-        "TODO: загрузить в VK и создать тестовые объявления."
+    bot_file = await context.bot.get_file(photo.file_id)
+    image_buf = BytesIO()
+    await bot_file.download_to_memory(image_buf)
+    image_bytes = image_buf.getvalue()
+
+    # Сохраняем для callback'а
+    context.user_data[_PENDING_KEY] = {
+        "image_bytes": image_bytes,
+        "caption": caption,
+        "filename": "photo.jpg",
+        "size_wh": (photo.width, photo.height),
+    }
+
+    # Прикидываем что бот сделает
+    copy = fallback_copy_from_caption(caption)
+    splits = DEFAULT_AGE_SPLITS_ORTHODOX
+    daily_per_group = settings.test_campaign_budget_rub
+    daily_total = daily_per_group * len(splits)
+
+    preview = (
+        f"📸 Получил фото {photo.width}×{photo.height} "
+        f"({len(image_bytes) // 1024} КБ)\n\n"
+        f"*Что будет в объявлении:*\n"
+        f"Заголовок: {copy.title}\n"
+        f"Текст: {copy.text[:200]}{'…' if len(copy.text) > 200 else ''}\n\n"
+        f"*A/B сплит по возрасту:*\n"
+        + "\n".join(f"  • {a}-{b}" for a, b in splits)
+        + f"\n\n*Бюджет:* {daily_per_group} ₽/день × {len(splits)} групп = "
+        f"*{daily_total} ₽/день*\n"
+        f"*Длительность:* 7 дней\n"
+        f"*Куда:* VK сообщество `{settings.vk_community_url_id}`\n\n"
+        "Создавать?"
     )
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("✅ Создать", callback_data=_CB_CONFIRM),
+            InlineKeyboardButton("❌ Отмена", callback_data=_CB_CANCEL),
+        ]
+    ])
+
+    await update.message.reply_text(
+        preview, reply_markup=keyboard, parse_mode="Markdown"
+    )
+
+
+async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработка нажатий inline-кнопок."""
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()  # убираем «часики» в Telegram
+
+    data = query.data or ""
+
+    if data == _CB_CANCEL:
+        context.user_data.pop(_PENDING_KEY, None)
+        await query.edit_message_text("❌ Отменено.")
+        return
+
+    if data == _CB_CONFIRM:
+        await _create_campaign_from_pending(update, context)
+        return
+
+    logger.warning(f"Неизвестный callback_data: {data}")
+
+
+async def _create_campaign_from_pending(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Достаёт pending фото и создаёт кампанию."""
+    query = update.callback_query
+    pending = context.user_data.get(_PENDING_KEY)
+
+    if not pending:
+        await query.edit_message_text(
+            "⚠️ Данные о фото потерялись (вероятно, бот перезапускался). "
+            "Пришли фото ещё раз."
+        )
+        return
+
+    await query.edit_message_text("⏳ Создаю кампанию в VK Рекламе...")
+
+    client = VKAdsClient.from_settings()
+    if client is None:
+        await query.edit_message_text("⚠️ VK Ads клиент не настроен.")
+        return
+
+    creator = AdCreator(client)
+    copy = fallback_copy_from_caption(pending["caption"])
+
+    try:
+        summary = await creator.create_age_split_campaign(
+            image_bytes=pending["image_bytes"],
+            theme=copy.title,
+            copy=copy,
+            community_url_id=settings.vk_community_url_id,  # type: ignore[arg-type]
+            age_splits=DEFAULT_AGE_SPLITS_ORTHODOX,
+            daily_budget_rub_per_group=settings.test_campaign_budget_rub,
+            campaign_name_prefix="bot-test",
+            image_filename=pending["filename"],
+        )
+    except AdCreatorError as e:
+        logger.error(f"AdCreator упал: {e}")
+        await query.edit_message_text(
+            f"❌ Не удалось создать кампанию:\n\n`{str(e)[:500]}`",
+            parse_mode="Markdown",
+        )
+        return
+    except VKAdsAuthError as e:
+        await query.edit_message_text(
+            f"❌ Авторизация VK слетела:\n\n`{str(e)[:300]}`",
+            parse_mode="Markdown",
+        )
+        return
+    except Exception as e:
+        logger.exception("Неожиданная ошибка при создании кампании")
+        await query.edit_message_text(f"❌ Неожиданная ошибка: {e}")
+        return
+    finally:
+        context.user_data.pop(_PENDING_KEY, None)
+
+    # Успех
+    msg_lines = [
+        "✅ *Кампания создана!*",
+        "",
+        f"Кампания: `{summary.ad_plan_id}`",
+        f"Групп: {len(summary.ad_group_ids)}",
+        f"Объявлений: {len(summary.banner_ids)}",
+        "",
+        "Через 1-2 часа после модерации VK начнут идти показы. "
+        "Утром пришлю первый отчёт.",
+    ]
+    await query.edit_message_text("\n".join(msg_lines), parse_mode="Markdown")
+
+
+# ============================================================================
+# Текст — заглушка
+# ============================================================================
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка обычного текстового сообщения."""
-    text = update.message.text
-    logger.info(f"Получен текст: '{text[:100]}...'")
-
-    # TODO: Парсить как команду на естественном языке через Claude
+    """Текстовое сообщение (без команды)."""
+    text = (update.message.text or "").strip()
+    logger.info(f"Получен текст: '{text[:100]}'")
     await update.message.reply_text(
-        f"📝 Принял: «{text[:200]}»\n\n"
-        "TODO: распознать команду через Claude и выполнить."
+        "📝 Принято. Текстовые команды через Claude — Phase 4.\n\n"
+        "Сейчас работают:\n"
+        "• /status — статус кабинета\n"
+        "• Фото с подписью — создать тестовую кампанию"
     )

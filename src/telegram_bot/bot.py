@@ -4,6 +4,7 @@ import logging
 
 from telegram.ext import (
     Application,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     filters,
@@ -13,6 +14,7 @@ from src.config import settings
 from src.telegram_bot.handlers import (
     handle_photo,
     handle_text,
+    on_callback,
     start_command,
     help_command,
     status_command,
@@ -50,6 +52,9 @@ def build_bot() -> Application:
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND & owner_filter, handle_text)
     )
+
+    # Inline-кнопки (подтверждение создания кампании)
+    application.add_handler(CallbackQueryHandler(on_callback))
 
     logger.info(f"Бот настроен, owner_id={settings.telegram_owner_id}")
     return application

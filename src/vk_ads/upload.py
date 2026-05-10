@@ -1,21 +1,28 @@
-"""Multipart-загрузка картинок в VK Рекламу.
+"""Загрузка статических картинок в VK Рекламу.
 
-ЭТО КРИТИЧНЫЙ МОДУЛЬ. На нём ломается большинство интеграций
-(включая прошлые попытки автора через n8n). Поэтому делаем на чистом httpx,
-который умеет multipart нативно.
+VK Реклама API v2 принимает картинки одним POST-запросом:
 
-Процесс:
-1. Получить upload_url от VK Ads API
-2. POST на этот URL с файлом как multipart/form-data
-3. Распарсить ответ, извлечь image_id (или photo_hash)
-4. Использовать image_id при создании объявления
+    POST https://ads.vk.com/api/v2/content/static.json
+    Authorization: Bearer <access_token>
+    Content-Type: multipart/form-data
+    file=@image.jpg
 
-Особенности:
-- Поле для файла называется по-разному в разных эндпоинтах VK API.
-  В новом VK Ads API уточнить — обычно `file` или `photo`.
-- Размер файла, формат и разрешение должны соответствовать требованиям VK
-  (в зависимости от формата объявления — баннер, карусель, видео-обложка и т.д.)
-- Ответ парсится из JSON, но иногда возвращается в виде form-encoded URL.
+Ответ:
+    {
+        "id": 21506470,
+        "variants": {
+            "original": {"url": "...", "height": 600, "width": 600, "size": 14407},
+            "uploaded": {"url": "...", "height": 600, "width": 600, "size": 14407}
+        }
+    }
+
+Возвращаемый id (content_id) используется при создании баннеров (banners.content).
+
+Требования к изображениям (см. https://ads.vk.com/doc/api/resource/Content):
+- Форматы: jpg, png
+- Для полноценного баннера нужны ТРИ размера: 256x256, 600x600, 1080x607
+  (загружаются по очереди, у каждого свой content_id, потом подставляются
+  в соответствующие поля banner.content)
 """
 
 import logging
@@ -25,52 +32,95 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-
-async def upload_image_to_vk(
-    upload_url: str,
-    image_path: str | Path,
-    field_name: str = "file",
-) -> dict:
-    """Загрузить картинку на upload_url, полученный от VK API.
-
-    Args:
-        upload_url: URL для загрузки (получается через VK API).
-        image_path: путь к файлу картинки.
-        field_name: имя поля в form-data (по умолчанию "file").
-
-    Returns:
-        Dict с ответом VK (обычно содержит image_id или photo_hash).
-
-    Raises:
-        httpx.HTTPStatusError: если VK ответил ошибкой.
-        FileNotFoundError: если файла нет.
-    """
-    image_path = Path(image_path)
-    if not image_path.exists():
-        raise FileNotFoundError(f"Файл не найден: {image_path}")
-
-    logger.info(f"Загружаю {image_path} на {upload_url}")
-
-    async with httpx.AsyncClient(timeout=60.0) as client:
-        with image_path.open("rb") as f:
-            files = {field_name: (image_path.name, f, _detect_mime(image_path))}
-            response = await client.post(upload_url, files=files)
-
-        response.raise_for_status()
-
-        result = response.json()
-        logger.info(f"VK upload response keys: {list(result.keys())}")
-        return result
+VK_CONTENT_STATIC_URL = "https://ads.vk.com/api/v2/content/static.json"
 
 
-def _detect_mime(path: Path) -> str:
-    """Простое определение MIME типа по расширению."""
-    ext = path.suffix.lower()
-    mapping = {
+class VKContentUploadError(Exception):
+    """Ошибка при загрузке картинки в VK."""
+
+
+def _detect_mime(filename: str) -> str:
+    """Определить MIME по расширению."""
+    ext = Path(filename).suffix.lower()
+    return {
         ".jpg": "image/jpeg",
         ".jpeg": "image/jpeg",
         ".png": "image/png",
-        ".gif": "image/gif",
-        ".webp": "image/webp",
-    }
-    return mapping.get(ext, "application/octet-stream")
+    }.get(ext, "image/jpeg")
+
+
+async def upload_image_bytes(
+    access_token: str,
+    image_bytes: bytes,
+    filename: str = "image.jpg",
+    mime_type: str | None = None,
+    timeout: float = 60.0,
+) -> dict:
+    """Загрузить картинку (как байты) в VK Ads.
+
+    Args:
+        access_token: Bearer токен (от OAuth)
+        image_bytes: содержимое картинки
+        filename: имя файла (для multipart, влияет на MIME если не задан)
+        mime_type: явный MIME-тип, иначе угадывается по расширению
+        timeout: секунд
+
+    Returns:
+        Полный словарь ответа VK (id, variants). content_id = result["id"].
+
+    Raises:
+        VKContentUploadError: если VK вернул не-2xx или невалидный JSON
+    """
+    if not image_bytes:
+        raise VKContentUploadError("Пустые байты — нечего загружать")
+
+    mime = mime_type or _detect_mime(filename)
+    logger.info(
+        f"Загружаю картинку в VK: {filename}, {len(image_bytes)} bytes, mime={mime}"
+    )
+
+    files = {"file": (filename, image_bytes, mime)}
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            response = await client.post(
+                VK_CONTENT_STATIC_URL, files=files, headers=headers
+            )
+    except httpx.RequestError as e:
+        raise VKContentUploadError(f"Сетевая ошибка при загрузке: {e}") from e
+
+    if response.status_code >= 400:
+        raise VKContentUploadError(
+            f"VK вернул {response.status_code}: {response.text[:500]}"
+        )
+
+    try:
+        result = response.json()
+    except ValueError as e:
+        raise VKContentUploadError(
+            f"VK вернул не JSON: {response.text[:300]}"
+        ) from e
+
+    if "id" not in result:
+        raise VKContentUploadError(f"В ответе VK нет id: {result}")
+
+    logger.info(f"Картинка загружена, content_id={result['id']}")
+    return result
+
+
+async def upload_image_file(
+    access_token: str,
+    image_path: str | Path,
+    timeout: float = 60.0,
+) -> dict:
+    """Прокси для upload_image_bytes — читает файл с диска."""
+    path = Path(image_path)
+    if not path.exists():
+        raise FileNotFoundError(f"Файл не найден: {path}")
+    return await upload_image_bytes(
+        access_token=access_token,
+        image_bytes=path.read_bytes(),
+        filename=path.name,
+        timeout=timeout,
+    )

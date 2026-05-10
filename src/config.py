@@ -29,6 +29,13 @@ class Settings(BaseSettings):
     vk_ads_oauth_client_secret: str | None = Field(None, description="OAuth client_secret")
     vk_ads_account_id: int = Field(..., description="ID рекламного кабинета")
     vk_ads_agency_client_id: int | None = Field(None, description="ID клиента (для агентств)")
+    vk_community_url_id: int | None = Field(
+        None,
+        description=(
+            "VK ID сообщества для рекламы (ad_object_id). "
+            "Для Зеленецкого монастыря и Спиридона разные — настраивается в Railway."
+        ),
+    )
 
     @field_validator(
         "vk_ads_token",
