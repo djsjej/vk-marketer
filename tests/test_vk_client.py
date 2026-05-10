@@ -69,10 +69,15 @@ async def test_get_account_info_success():
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_balance_extracts_from_client_info():
+    """Если /users/current.json возвращает client_info.balance — извлекаем."""
     respx.post(OAUTH_URL).mock(
         return_value=httpx.Response(
             200, json={"access_token": "tk", "expires_in": 86400}
         )
+    )
+    # /client.json возвращает 404 — пропустим
+    respx.get(f"{VK_API_BASE}/client.json").mock(
+        return_value=httpx.Response(404, json={"error": "not found"})
     )
     respx.get(f"{VK_API_BASE}/users/current.json").mock(
         return_value=httpx.Response(
@@ -81,7 +86,8 @@ async def test_get_balance_extracts_from_client_info():
     )
 
     client = VKAdsClient(
-        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s"),
+        account_id=42,
     )
     balance = await client.get_balance()
     assert balance == 2083.5
@@ -89,19 +95,46 @@ async def test_get_balance_extracts_from_client_info():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_get_balance_extracts_from_top_level():
-    """API может класть balance в корень объекта."""
+async def test_get_balance_extracts_from_client_endpoint_account_balance():
+    """Если /client.json вернул account_balance — это самый приоритетный путь."""
     respx.post(OAUTH_URL).mock(
         return_value=httpx.Response(
             200, json={"access_token": "tk", "expires_in": 86400}
         )
+    )
+    respx.get(f"{VK_API_BASE}/client.json").mock(
+        return_value=httpx.Response(
+            200, json={"id": 30591625, "name": "Test", "account_balance": 1000.0}
+        )
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s"),
+        account_id=30591625,
+    )
+    balance = await client.get_balance()
+    assert balance == 1000.0
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_balance_extracts_from_top_level():
+    """API может класть balance в корень объекта в /users/current.json."""
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    respx.get(f"{VK_API_BASE}/client.json").mock(
+        return_value=httpx.Response(404)
     )
     respx.get(f"{VK_API_BASE}/users/current.json").mock(
         return_value=httpx.Response(200, json={"balance": 500.0})
     )
 
     client = VKAdsClient(
-        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s"),
+        account_id=42,
     )
     assert await client.get_balance() == 500.0
 
@@ -109,17 +142,28 @@ async def test_get_balance_extracts_from_top_level():
 @pytest.mark.asyncio
 @respx.mock
 async def test_get_balance_returns_none_when_field_missing():
+    """Если все 3 эндпоинта вернут ответ без поля баланса — возвращаем None."""
     respx.post(OAUTH_URL).mock(
         return_value=httpx.Response(
             200, json={"access_token": "tk", "expires_in": 86400}
         )
     )
+    # /client.json — без баланса
+    respx.get(f"{VK_API_BASE}/client.json").mock(
+        return_value=httpx.Response(200, json={"id": 123, "name": "X"})
+    )
+    # /users/current.json — без баланса
     respx.get(f"{VK_API_BASE}/users/current.json").mock(
         return_value=httpx.Response(200, json={"id": 123, "first_name": "X"})
     )
+    # /clients.json — пустой список
+    respx.get(f"{VK_API_BASE}/clients.json").mock(
+        return_value=httpx.Response(200, json={"items": []})
+    )
 
     client = VKAdsClient(
-        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s"),
+        account_id=42,
     )
     assert await client.get_balance() is None
 

@@ -160,31 +160,87 @@ class VKAdsClient:
     async def get_balance(self) -> float | None:
         """Баланс кабинета в рублях. None если не удалось распарсить.
 
-        Удобный шорткат — баланс лежит внутри get_account_info().
+        Пробует несколько эндпоинтов и форматов ответа последовательно:
+        1. GET /client.json?client_id=<account_id> → account_balance
+           (этот вариант подтверждён в твоих прошлогодних рабочих чатах)
+        2. GET /users/current.json → client_info.balance / balance / account.balance
+        3. GET /clients.json → items[0].account_balance
+
+        При каждой попытке логируем что вернул VK — чтобы при провале можно было
+        посмотреть в логах Railway и понять структуру.
         """
+        # Попытка 1: /client.json?client_id=...
+        if self.account_id:
+            try:
+                info = await self._request(
+                    "GET",
+                    "/client.json",
+                    params={"client_id": self.account_id},
+                )
+                logger.info(f"VK /client.json keys: {list(info.keys()) if isinstance(info, dict) else type(info)}")
+                if balance := self._extract_balance_from_dict(info):
+                    return balance
+            except VKAdsAPIError as e:
+                logger.warning(f"/client.json не сработал: {e}")
+
+        # Попытка 2: /users/current.json
         try:
             info = await self.get_account_info()
-            # В разных версиях API поле называется по-разному:
-            # client_info.balance, balance, account.balance
-            for path in [
-                ("client_info", "balance"),
-                ("balance",),
-                ("account", "balance"),
-            ]:
-                value: Any = info
-                for key in path:
-                    if isinstance(value, dict) and key in value:
-                        value = value[key]
-                    else:
-                        value = None
-                        break
-                if value is not None:
+            logger.info(f"VK /users/current.json keys: {list(info.keys()) if isinstance(info, dict) else type(info)}")
+            if balance := self._extract_balance_from_dict(info):
+                return balance
+        except VKAdsAPIError as e:
+            logger.warning(f"/users/current.json не сработал: {e}")
+
+        # Попытка 3: /clients.json (список — берём первый элемент)
+        try:
+            result = await self._request("GET", "/clients.json")
+            items = (
+                result.get("items", [])
+                if isinstance(result, dict)
+                else (result if isinstance(result, list) else [])
+            )
+            if items:
+                logger.info(f"VK /clients.json items[0] keys: {list(items[0].keys()) if isinstance(items[0], dict) else type(items[0])}")
+                if balance := self._extract_balance_from_dict(items[0]):
+                    return balance
+        except VKAdsAPIError as e:
+            logger.warning(f"/clients.json не сработал: {e}")
+
+        logger.warning("Не нашёл баланс ни в одном из эндпоинтов")
+        return None
+
+    @staticmethod
+    def _extract_balance_from_dict(info: Any) -> float | None:
+        """Ищем баланс по списку известных путей в произвольном dict."""
+        if not isinstance(info, dict):
+            return None
+        # Имена полей и вложенные пути, под которые VK прячет баланс
+        # в разных эндпоинтах/версиях API
+        paths = [
+            ("account_balance",),
+            ("balance",),
+            ("client_info", "balance"),
+            ("client_info", "account_balance"),
+            ("account", "balance"),
+            ("account", "account_balance"),
+            ("wallet", "balance"),
+            ("info", "balance"),
+        ]
+        for path in paths:
+            value: Any = info
+            for key in path:
+                if isinstance(value, dict) and key in value:
+                    value = value[key]
+                else:
+                    value = None
+                    break
+            if value is not None:
+                try:
                     return float(value)
-            logger.warning(f"Не нашёл поле баланса в ответе: ключи={list(info.keys())}")
-            return None
-        except (VKAdsAPIError, ValueError, TypeError) as e:
-            logger.error(f"Не удалось получить баланс: {e}")
-            return None
+                except (TypeError, ValueError):
+                    continue
+        return None
 
     async def get_campaigns(
         self, limit: int = 50, offset: int = 0, status: str | None = None
