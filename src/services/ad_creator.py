@@ -149,61 +149,109 @@ class AdCreator:
         safe_theme = theme[:50].strip()
         campaign_name = f"{campaign_name_prefix} | {safe_theme}"
 
-        ad_groups_payload = []
-        for age_from, age_to in age_splits:
-            age_list = list(range(age_from, age_to + 1))
-            group_name = f"{age_from}-{age_to}"
-            ad_groups_payload.append(self._build_ad_group(
-                name=group_name,
-                age_list=age_list,
-                sex=sex,
-                geo_regions=geo_regions,
-                budget_rub=daily_budget_rub_per_group,
-                date_start=date_start,
-                package_id=package_id,
-                copy=copy,
-                content_id=content_id,
-                internal_url_id=internal_url_id,
-            ))
-
+        # 3. POST /ad_plans.json — создаём ТОЛЬКО кампанию-контейнер,
+        # без вложенных ad_groups. Это соответствует рабочему паттерну
+        # из прошлогодних n8n-кампаний пользователя (chat 254d0ed0).
+        # Вложенный одним POST вариант падает в новом кабинете на валидации.
         ad_plan_payload = {
             "name": campaign_name,
             "status": "active",
             "date_start": date_start,
             "date_end": date_end,
             "autobidding_mode": "max_goals",
-            # Бюджет в РУБЛЯХ как int (не копейки, не строка) — этот формат
-            # подтверждён в твоих рабочих n8n-кампаниях прошлого года.
             "budget_limit_day": daily_budget_rub_per_group * len(age_splits),
-            "budget_limit": None,  # явный null обязателен для VK
+            "budget_limit": None,
             "max_price": 0,
             "objective": "socialengagement",
             "ad_object_id": internal_url_id,
             "ad_object_type": "url",
-            "ad_groups": ad_groups_payload,
         }
 
         logger.info(
-            f"POST /ad_plans.json: {campaign_name}, "
-            f"{len(age_splits)} групп, "
+            f"[Step 3/5] POST /ad_plans.json: {campaign_name}, "
             f"бюджет {ad_plan_payload['budget_limit_day']} ₽/день"
         )
-        logger.info(
-            f"ad_object_id={internal_url_id}, ad_object_type=url, "
-            f"objective=socialengagement, package_id={package_id}, "
-            f"content_id={content_id}"
-        )
-        # Полный payload в DEBUG (для разбора что VK ревнует к чему)
-        import json as _json
-        logger.debug(f"Full payload: {_json.dumps(ad_plan_payload, ensure_ascii=False)[:2000]}")
-
-        # 4. Один POST на всю иерархию
         try:
-            result = await self.vk.create_ad_plan(ad_plan_payload)
+            plan_response = await self.vk.create_ad_plan(ad_plan_payload)
+            ad_plan_id = int(plan_response["id"])
+            logger.info(f"✅ ad_plan создана, id={ad_plan_id}")
         except Exception as e:
             raise AdCreatorError(f"VK не принял ad_plan: {e}") from e
 
-        return self._parse_create_response(result)
+        # 4. Для каждой возрастной группы — POST /ad_groups.json + POST /banners.json
+        ad_group_ids: list[int] = []
+        banner_ids: list[int] = []
+
+        for idx, (age_from, age_to) in enumerate(age_splits, 1):
+            age_list = list(range(age_from, age_to + 1))
+            group_name = f"{age_from}-{age_to}"
+
+            group_payload = {
+                "ad_plan_id": ad_plan_id,
+                "name": group_name,
+                "status": "active",
+                "targetings": {
+                    "geo": {"regions": geo_regions},
+                    "sex": sex,
+                    "age": {"age_list": age_list},
+                },
+                "max_price": 0,
+                "budget_limit_day": daily_budget_rub_per_group,
+                "budget_limit": None,
+                "date_start": date_start,
+                "date_end": None,
+                "age_restrictions": "0+",
+                "package_id": package_id,
+            }
+
+            logger.info(
+                f"[Step 4.{idx}/5] POST /ad_groups.json: {group_name}, "
+                f"возраст {age_list}"
+            )
+            try:
+                group_response = await self.vk.create_ad_group(group_payload)
+                ad_group_id = int(group_response["id"])
+                ad_group_ids.append(ad_group_id)
+                logger.info(f"✅ ad_group {group_name} создана, id={ad_group_id}")
+            except Exception as e:
+                # Если упало — кампания уже создана, оставляем как orphan
+                raise AdCreatorError(
+                    f"ad_plan {ad_plan_id} создан, но группа {group_name} упала: {e}"
+                ) from e
+
+            # POST /banners.json для этой группы
+            banner_payload = {
+                "ad_group_id": ad_group_id,
+                "name": f"{group_name} | {copy.title[:30]}",
+                "urls": {"primary": {"id": internal_url_id}},
+                "textblocks": {
+                    "title_40_vkads": {"text": copy.title[:40]},
+                    "text_2000": {"text": copy.text[:2000]},
+                    "about_company_115": {"text": copy.about[:115]},
+                    "cta_community_vk": {"text": copy.cta},
+                },
+                "content": {
+                    "image_600x600": {"id": content_id},
+                },
+            }
+            logger.info(f"[Step 5.{idx}/5] POST /banners.json для группы {ad_group_id}")
+            try:
+                banner_response = await self.vk.create_banner(banner_payload)
+                banner_id = int(banner_response["id"])
+                banner_ids.append(banner_id)
+                logger.info(f"✅ banner создан, id={banner_id}")
+            except Exception as e:
+                raise AdCreatorError(
+                    f"ad_plan {ad_plan_id}, группа {ad_group_id} созданы, "
+                    f"но баннер упал: {e}"
+                ) from e
+
+        return CampaignSummary(
+            ad_plan_id=ad_plan_id,
+            ad_group_ids=ad_group_ids,
+            banner_ids=banner_ids,
+            raw=plan_response,
+        )
 
     @staticmethod
     def _build_ad_group(

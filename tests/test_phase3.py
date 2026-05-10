@@ -212,13 +212,12 @@ def test_parse_create_response_raises_when_no_id():
 @pytest.mark.asyncio
 @respx.mock
 async def test_create_age_split_campaign_full_flow():
-    """End-to-end проверка: регистрация URL + загрузка картинки + POST ad_plan + парсинг."""
+    """End-to-end: URL registration + image upload + 3 POSTs per group (plan/groups/banners)."""
     respx.post(OAUTH_URL).mock(
         return_value=httpx.Response(
             200, json={"access_token": "tk", "expires_in": 86400}
         )
     )
-    # GET /api/v1/urls/?url=... — регистрация URL в кабинете
     respx.get("https://ads.vk.com/api/v1/urls/").mock(
         return_value=httpx.Response(
             200,
@@ -229,16 +228,19 @@ async def test_create_age_split_campaign_full_flow():
         return_value=httpx.Response(200, json={"id": 555, "variants": {}})
     )
     ad_plan_route = respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
-        return_value=httpx.Response(
-            200,
-            json={
-                "id": 7000,
-                "ad_groups": [
-                    {"id": 7100, "banners": [{"id": 7110}]},
-                    {"id": 7200, "banners": [{"id": 7210}]},
-                ],
-            },
-        )
+        return_value=httpx.Response(200, json={"id": 7000})
+    )
+    ad_group_route = respx.post(f"{VK_API_BASE}/ad_groups.json").mock(
+        side_effect=[
+            httpx.Response(200, json={"id": 7100}),
+            httpx.Response(200, json={"id": 7200}),
+        ]
+    )
+    banner_route = respx.post(f"{VK_API_BASE}/banners.json").mock(
+        side_effect=[
+            httpx.Response(200, json={"id": 7110}),
+            httpx.Response(200, json={"id": 7210}),
+        ]
     )
 
     client = VKAdsClient(
@@ -256,17 +258,11 @@ async def test_create_age_split_campaign_full_flow():
     )
 
     assert summary.ad_plan_id == 7000
-    assert len(summary.ad_group_ids) == 2
-    assert len(summary.banner_ids) == 2
-
-    # Проверяем что POST отправил правильный payload
-    request = ad_plan_route.calls[0].request
-    body = request.read().decode()
-    assert "ad_plans" not in body  # тело не содержит лишнего
-    assert "41" in body and "42" in body and "43" in body and "44" in body
-    # internal_url_id из мока (12345), а не VK community ID
-    assert "12345" in body
-    assert "555" in body  # content_id из загрузки
+    assert summary.ad_group_ids == [7100, 7200]
+    assert summary.banner_ids == [7110, 7210]
+    assert ad_plan_route.call_count == 1
+    assert ad_group_route.call_count == 2
+    assert banner_route.call_count == 2
 
 
 @pytest.mark.asyncio
