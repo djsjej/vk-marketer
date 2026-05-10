@@ -1,6 +1,6 @@
 """Загрузка и валидация конфигурации из переменных окружения."""
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -29,6 +29,25 @@ class Settings(BaseSettings):
     vk_ads_oauth_client_secret: str | None = Field(None, description="OAuth client_secret")
     vk_ads_account_id: int = Field(..., description="ID рекламного кабинета")
     vk_ads_agency_client_id: int | None = Field(None, description="ID клиента (для агентств)")
+
+    @field_validator(
+        "vk_ads_token",
+        "vk_ads_oauth_client_id",
+        "vk_ads_oauth_client_secret",
+        "telegram_bot_token",
+        "anthropic_api_key",
+        mode="before",
+    )
+    @classmethod
+    def _strip_whitespace(cls, v: object) -> object:
+        """Убирает лишние пробелы и переносы строк из значений env vars.
+
+        Когда пользователь копипастит ключи в Railway/iOS, иногда туда попадает
+        невидимый '\\n' в конце. Это ломает HTTP-заголовки и сравнения строк.
+        """
+        if isinstance(v, str):
+            return v.strip()
+        return v
 
     # --- Claude ---
     anthropic_api_key: str = Field(..., description="API key Anthropic")
