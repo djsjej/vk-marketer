@@ -193,10 +193,15 @@ class VKAdsAuthenticator:
         if "access_token" not in resp_data:
             raise VKAdsAuthError(f"В ответе VK нет access_token: {resp_data}")
 
-        # Permanent токены имеют expires_in=0 — трактуем как «без срока»
-        expires_in = resp_data.get("expires_in", 86400)
-        is_permanent = self.request_permanent and expires_in == 0
-        expires_at = None if is_permanent else time.time() + expires_in
+        # Permanent токены: VK возвращает либо expires_in=0, либо expires_in=null,
+        # либо не возвращает поле вовсе. Все эти случаи трактуем как «без срока».
+        expires_in_raw = resp_data.get("expires_in")
+        if expires_in_raw is None or expires_in_raw == 0:
+            is_permanent = True
+            expires_at = None
+        else:
+            is_permanent = False
+            expires_at = time.time() + int(expires_in_raw)
 
         self._token = TokenInfo(
             access_token=resp_data["access_token"],
@@ -209,8 +214,8 @@ class VKAdsAuthenticator:
             logger.info("Получен PERMANENT access_token (без срока истечения)")
         else:
             logger.info(
-                f"Получен access_token, действует {expires_in} сек "
-                f"(~{expires_in // 3600}ч)"
+                f"Получен access_token, действует {expires_in_raw} сек "
+                f"(~{int(expires_in_raw) // 3600}ч)"
             )
 
     async def invalidate(self) -> None:
