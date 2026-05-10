@@ -1,11 +1,10 @@
 """Обработчики команд и сообщений от пользователя.
 
-Phase 3 — полноценный flow создания тестовой кампании по фото:
-1. /start, /help — служебные
-2. /status — реальные данные кабинета через VK Ads API
-3. handle_photo — приёмка фото с подписью + inline-подтверждение
-4. on_callback — обработка кнопок [Создать] / [Отмена]
-5. handle_text — заглушка под Phase 4 (текстовые команды через Claude)
+Phase 3.5 — генерация креативов через Claude:
+1. Фото с подписью (тема) → Claude генерирует 4 варианта
+2. Бот показывает все 4 в одном сообщении + кнопки [1][2][3][4][🔄][❌]
+3. Пользователь тапает номер → превью с выбранным + [✅ Создать][❌ Отмена]
+4. Создать → AdCreator делает кампанию с возрастным A/B сплитом
 """
 
 import logging
@@ -18,23 +17,35 @@ from telegram import (
 )
 from telegram.ext import ContextTypes
 
+from src.claude_brain.copywriter import (
+    ClaudeCopywriter,
+    CopywriterError,
+    fallback_copy_from_caption,
+)
 from src.config import settings
 from src.services.ad_creator import (
     DEFAULT_AGE_SPLITS_ORTHODOX,
+    AdCopy,
     AdCreator,
     AdCreatorError,
 )
-from src.claude_brain.copywriter import fallback_copy_from_caption
 from src.vk_ads.auth import VKAdsAuthError
 from src.vk_ads.client import VKAdsAPIError, VKAdsClient
 
 logger = logging.getLogger(__name__)
 
 
-# Ключи для context.user_data — храним фото между фото-сообщением и нажатием кнопки
-_PENDING_KEY = "pending_campaign"
+# Ключи в context.user_data:
+# pending_photo: bytes картинки + caption (theme), пока не выбран вариант
+# pending_variants: список AdCopy после генерации Claude
+# pending_campaign: финальный выбор {image_bytes, caption, copy} перед созданием
+_PHOTO_KEY = "pending_photo"
+_VARIANTS_KEY = "pending_variants"
+_CAMPAIGN_KEY = "pending_campaign"
 
-# Префикс callback_data для inline-кнопок
+# Префиксы callback_data
+_CB_VARIANT = "variant:"  # variant:0, variant:1, ...
+_CB_REGEN = "variant:regen"
 _CB_CONFIRM = "campaign:confirm"
 _CB_CANCEL = "campaign:cancel"
 
@@ -48,10 +59,9 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     await update.message.reply_text(
         "🤖 Я — твой VK-маркетолог.\n\n"
         "Что умею:\n"
-        "• Принимать фото с подписью → создать тестовую кампанию с возрастным A/B сплитом\n"
-        "• Мониторить и автоотключать слабые объявления\n"
-        "• Масштабировать удачные\n"
-        "• Каждое утро присылать отчёт\n\n"
+        "• Принимать фото + тему → Claude генерит 4 варианта текста, выбираешь лучший\n"
+        "• Запускать тестовую кампанию с возрастным A/B сплитом\n"
+        "• Мониторить и автоотключать слабые объявления (Phase 4)\n\n"
         "Команды: /help, /status"
     )
 
@@ -62,11 +72,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/start — приветствие\n"
         "/help — это сообщение\n"
         "/status — реальный статус кабинета VK\n\n"
-        "📸 Прислать фото с подписью — бот предложит создать тестовую кампанию:\n"
-        "5 возрастных групп (41-42, 43-44, 45-46, 47-48, 49-50)\n"
-        "бюджет 200 ₽/день на группу = 1000 ₽/день общий\n"
-        "длительность 7 дней\n\n"
-        "Перед созданием бот спросит подтверждение."
+        "📸 Прислать фото с подписью:\n"
+        "1. Подпись = тема рекламы (например: «молитвы за здравие в монастыре»)\n"
+        "2. Я сгенерирую через Claude 4 разных варианта заголовка+текста\n"
+        "3. Ты выбираешь лучший\n"
+        "4. Создаю тестовую кампанию: 5 возрастных групп × 200 ₽/день = 1000 ₽/день, 7 дней"
     )
 
 
@@ -75,8 +85,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     if not settings.vk_configured:
         await update.message.reply_text(
             "⚠️ VK Ads клиент не настроен.\n\n"
-            "Нужно задать в env vars: VK_ADS_OAUTH_CLIENT_ID и VK_ADS_OAUTH_CLIENT_SECRET\n"
-            "(или VK_ADS_TOKEN если есть готовый access_token)"
+            "Нужно задать в env vars: VK_ADS_OAUTH_CLIENT_ID и VK_ADS_OAUTH_CLIENT_SECRET"
         )
         return
 
@@ -144,12 +153,12 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 # ============================================================================
-# Photo flow: фото с подписью → подтверждение → создание кампании
+# Photo flow: фото с темой → Claude генерит варианты → выбор → подтверждение → создание
 # ============================================================================
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Получили фото — скачиваем, парсим подпись, спрашиваем подтверждение."""
+    """Получили фото — скачиваем, генерим варианты текста, показываем для выбора."""
     if not settings.vk_configured:
         await update.message.reply_text(
             "⚠️ Сначала настрой VK Ads OAuth в Railway env vars."
@@ -159,54 +168,134 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     if settings.vk_community_url_id is None:
         await update.message.reply_text(
             "⚠️ Не задан `VK_COMMUNITY_URL_ID` в env vars Railway.\n\n"
-            "Это VK ID сообщества, на которое будет вестись реклама. "
-            "Без него я не знаю, куда направлять трафик. Задай и попробуй ещё раз.",
+            "Это VK ID сообщества, на которое будет вестись реклама.",
             parse_mode="Markdown",
         )
         return
 
-    photo = update.message.photo[-1]  # самая большая версия
+    photo = update.message.photo[-1]
     caption = (update.message.caption or "").strip()
 
     if not caption:
         await update.message.reply_text(
             "📝 К фото нужна подпись с темой рекламы.\n\n"
-            "Первая строка станет заголовком (макс 40 символов), "
-            "остальное — основным текстом объявления."
+            "По теме Claude сгенерирует 4 разных варианта заголовка+текста, "
+            "ты выберешь лучший."
         )
         return
 
-    # Скачиваем фото в память
     logger.info(
-        f"Получено фото: file_id={photo.file_id}, "
+        f"Фото от owner: file_id={photo.file_id}, "
         f"size={photo.width}x{photo.height}, caption='{caption[:60]}'"
     )
 
+    # Скачиваем фото в память
     bot_file = await context.bot.get_file(photo.file_id)
     image_buf = BytesIO()
     await bot_file.download_to_memory(image_buf)
     image_bytes = image_buf.getvalue()
 
-    # Сохраняем для callback'а
-    context.user_data[_PENDING_KEY] = {
+    context.user_data[_PHOTO_KEY] = {
         "image_bytes": image_bytes,
         "caption": caption,
         "filename": "photo.jpg",
-        "size_wh": (photo.width, photo.height),
     }
+    # Старые pending очищаем
+    context.user_data.pop(_VARIANTS_KEY, None)
+    context.user_data.pop(_CAMPAIGN_KEY, None)
 
-    # Прикидываем что бот сделает
-    copy = fallback_copy_from_caption(caption)
+    placeholder = await update.message.reply_text(
+        "🤖 Получил фото, генерирую 4 варианта текста через Claude..."
+    )
+
+    await _generate_and_show_variants(placeholder, context, caption)
+
+
+async def _generate_and_show_variants(
+    message_to_edit, context: ContextTypes.DEFAULT_TYPE, theme: str
+) -> None:
+    """Дёргаем Claude → сохраняем варианты → показываем кнопки выбора."""
+    try:
+        copywriter = ClaudeCopywriter()
+        variants = await copywriter.generate_copy_variants(theme=theme, n=4)
+    except CopywriterError as e:
+        logger.error(f"Claude не сгенерил варианты: {e}")
+        # Fallback: используем caption напрямую как один вариант
+        variants = [fallback_copy_from_caption(theme)]
+        await message_to_edit.edit_text(
+            f"⚠️ Claude недоступен ({str(e)[:100]}). Использую подпись как текст напрямую."
+        )
+        # Сразу переходим к подтверждению с этим единственным вариантом
+        context.user_data[_CAMPAIGN_KEY] = {
+            **context.user_data[_PHOTO_KEY],
+            "copy": variants[0],
+        }
+        await _show_campaign_preview(message_to_edit, context, variants[0], len(variants))
+        return
+
+    # Сохраняем варианты для callback'а
+    context.user_data[_VARIANTS_KEY] = variants
+
+    # Собираем сообщение со всеми вариантами
+    lines = [f"🎨 *Сгенерировал {len(variants)} вариантов:*\n"]
+    for i, v in enumerate(variants, 1):
+        lines.append(f"*━━━ Вариант {i} ━━━*")
+        lines.append(f"*{v.title}*")
+        # Текст обрезаем чтобы влезло в один Telegram-message (4096 chars total)
+        text_preview = v.text[:300] + ("…" if len(v.text) > 300 else "")
+        lines.append(text_preview)
+        lines.append(f"_{v.about}_")
+        lines.append("")
+
+    # Кнопки выбора
+    n = len(variants)
+    rows: list[list[InlineKeyboardButton]] = []
+    # Первый ряд — номера вариантов
+    rows.append([
+        InlineKeyboardButton(str(i + 1), callback_data=f"{_CB_VARIANT}{i}")
+        for i in range(n)
+    ])
+    rows.append([
+        InlineKeyboardButton("🔄 Перегенерить", callback_data=_CB_REGEN),
+        InlineKeyboardButton("❌ Отмена", callback_data=_CB_CANCEL),
+    ])
+
+    full_text = "\n".join(lines)
+    # Ограничение Telegram — 4096 символов на сообщение
+    if len(full_text) > 4000:
+        full_text = full_text[:3990] + "\n\n_(обрезано)_"
+
+    await message_to_edit.edit_text(
+        full_text,
+        reply_markup=InlineKeyboardMarkup(rows),
+        parse_mode="Markdown",
+    )
+
+
+async def _show_campaign_preview(
+    message_to_edit,
+    context: ContextTypes.DEFAULT_TYPE,
+    chosen: AdCopy,
+    variant_num: int,
+) -> None:
+    """Показывает финальное превью с выбранным вариантом + кнопки [Создать] [Отмена]."""
+    photo = context.user_data.get(_PHOTO_KEY)
+    if not photo:
+        await message_to_edit.edit_text("⚠️ Данные о фото потерялись, пришли заново.")
+        return
+
     splits = DEFAULT_AGE_SPLITS_ORTHODOX
     daily_per_group = settings.test_campaign_budget_rub
     daily_total = daily_per_group * len(splits)
 
+    text_preview = chosen.text[:400] + ("…" if len(chosen.text) > 400 else "")
+
     preview = (
-        f"📸 Получил фото {photo.width}×{photo.height} "
-        f"({len(image_bytes) // 1024} КБ)\n\n"
-        f"*Что будет в объявлении:*\n"
-        f"Заголовок: {copy.title}\n"
-        f"Текст: {copy.text[:200]}{'…' if len(copy.text) > 200 else ''}\n\n"
+        f"📋 *Выбран вариант:*\n\n"
+        f"*Заголовок:* {chosen.title}\n"
+        f"*Текст:* {text_preview}\n"
+        f"*О проекте:* {chosen.about}\n"
+        f"*CTA:* {chosen.cta}\n\n"
         f"*A/B сплит по возрасту:*\n"
         + "\n".join(f"  • {a}-{b}" for a, b in splits)
         + f"\n\n*Бюджет:* {daily_per_group} ₽/день × {len(splits)} групп = "
@@ -223,23 +312,57 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         ]
     ])
 
-    await update.message.reply_text(
+    await message_to_edit.edit_text(
         preview, reply_markup=keyboard, parse_mode="Markdown"
     )
 
 
 async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработка нажатий inline-кнопок."""
+    """Роутинг inline-кнопок."""
     query = update.callback_query
     if not query:
         return
-    await query.answer()  # убираем «часики» в Telegram
+    await query.answer()
 
     data = query.data or ""
 
     if data == _CB_CANCEL:
-        context.user_data.pop(_PENDING_KEY, None)
+        context.user_data.pop(_PHOTO_KEY, None)
+        context.user_data.pop(_VARIANTS_KEY, None)
+        context.user_data.pop(_CAMPAIGN_KEY, None)
         await query.edit_message_text("❌ Отменено.")
+        return
+
+    if data == _CB_REGEN:
+        photo = context.user_data.get(_PHOTO_KEY)
+        if not photo:
+            await query.edit_message_text("⚠️ Данные о фото потерялись, пришли заново.")
+            return
+        await query.edit_message_text("🔄 Перегенерирую варианты...")
+        await _generate_and_show_variants(query.message, context, photo["caption"])
+        return
+
+    if data.startswith(_CB_VARIANT):
+        # variant:N — выбор варианта по номеру
+        try:
+            idx = int(data.split(":", 1)[1])
+        except (ValueError, IndexError):
+            logger.warning(f"Невалидный variant callback: {data}")
+            return
+
+        variants = context.user_data.get(_VARIANTS_KEY, [])
+        if idx < 0 or idx >= len(variants):
+            await query.edit_message_text("⚠️ Этот вариант больше недоступен.")
+            return
+
+        chosen: AdCopy = variants[idx]
+        photo = context.user_data.get(_PHOTO_KEY)
+        if not photo:
+            await query.edit_message_text("⚠️ Данные о фото потерялись.")
+            return
+
+        context.user_data[_CAMPAIGN_KEY] = {**photo, "copy": chosen}
+        await _show_campaign_preview(query.message, context, chosen, idx + 1)
         return
 
     if data == _CB_CONFIRM:
@@ -252,14 +375,12 @@ async def on_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def _create_campaign_from_pending(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
-    """Достаёт pending фото и создаёт кампанию."""
     query = update.callback_query
-    pending = context.user_data.get(_PENDING_KEY)
+    pending = context.user_data.get(_CAMPAIGN_KEY)
 
     if not pending:
         await query.edit_message_text(
-            "⚠️ Данные о фото потерялись (вероятно, бот перезапускался). "
-            "Пришли фото ещё раз."
+            "⚠️ Данные потерялись (бот мог перезапуститься). Пришли фото заново."
         )
         return
 
@@ -271,7 +392,7 @@ async def _create_campaign_from_pending(
         return
 
     creator = AdCreator(client)
-    copy = fallback_copy_from_caption(pending["caption"])
+    copy: AdCopy = pending["copy"]
 
     try:
         summary = await creator.create_age_split_campaign(
@@ -302,9 +423,10 @@ async def _create_campaign_from_pending(
         await query.edit_message_text(f"❌ Неожиданная ошибка: {e}")
         return
     finally:
-        context.user_data.pop(_PENDING_KEY, None)
+        context.user_data.pop(_PHOTO_KEY, None)
+        context.user_data.pop(_VARIANTS_KEY, None)
+        context.user_data.pop(_CAMPAIGN_KEY, None)
 
-    # Успех
     msg_lines = [
         "✅ *Кампания создана!*",
         "",
@@ -312,8 +434,7 @@ async def _create_campaign_from_pending(
         f"Групп: {len(summary.ad_group_ids)}",
         f"Объявлений: {len(summary.banner_ids)}",
         "",
-        "Через 1-2 часа после модерации VK начнут идти показы. "
-        "Утром пришлю первый отчёт.",
+        "Через 1-2 часа после модерации VK начнут идти показы.",
     ]
     await query.edit_message_text("\n".join(msg_lines), parse_mode="Markdown")
 
@@ -324,12 +445,10 @@ async def _create_campaign_from_pending(
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Текстовое сообщение (без команды)."""
     text = (update.message.text or "").strip()
     logger.info(f"Получен текст: '{text[:100]}'")
     await update.message.reply_text(
-        "📝 Принято. Текстовые команды через Claude — Phase 4.\n\n"
-        "Сейчас работают:\n"
+        "📝 Принято. Сейчас работают:\n"
         "• /status — статус кабинета\n"
-        "• Фото с подписью — создать тестовую кампанию"
+        "• Фото с подписью → 4 варианта от Claude → выбор → создание кампании"
     )
