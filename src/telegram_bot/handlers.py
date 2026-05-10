@@ -80,6 +80,52 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 
+async def clean_tokens_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Удаляет ВСЕ активные токены VK для нашего client_id.
+
+    Использовать только в одной ситуации: упёрлись в лимит токенов
+    (token_limit_exceeded) и нужно почистить старые накопившиеся.
+    После очистки бот при следующем /status автоматически запросит
+    свежий permanent токен и закэширует в БД.
+    """
+    if not settings.vk_configured:
+        await update.message.reply_text("⚠️ VK Ads OAuth не настроен.")
+        return
+
+    placeholder = await update.message.reply_text(
+        "⏳ Удаляю все активные токены VK для этого client_id..."
+    )
+
+    from src.vk_ads.auth import VKAdsAuthenticator
+
+    auth = VKAdsAuthenticator(
+        client_id=settings.vk_ads_oauth_client_id,  # type: ignore[arg-type]
+        client_secret=settings.vk_ads_oauth_client_secret,  # type: ignore[arg-type]
+    )
+
+    try:
+        result = await auth.delete_all_remote_tokens()
+    except VKAdsAuthError as e:
+        await placeholder.edit_text(
+            f"❌ Не удалось удалить токены:\n\n`{str(e)[:500]}`",
+            parse_mode="Markdown",
+        )
+        return
+    except Exception as e:
+        logger.exception("Неожиданная ошибка при удалении токенов")
+        await placeholder.edit_text(f"❌ Неожиданная ошибка: {e}")
+        return
+
+    await placeholder.edit_text(
+        "✅ *Все токены удалены.*\n\n"
+        f"Ответ VK: `{str(result)[:200]}`\n\n"
+        "Теперь напиши /status — бот автоматически запросит свежий "
+        "permanent токен и сохранит его в БД навсегда. "
+        "Больше в лимит токенов мы не упрёмся.",
+        parse_mode="Markdown",
+    )
+
+
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Реальный статус кабинета через VK Ads API."""
     if not settings.vk_configured:

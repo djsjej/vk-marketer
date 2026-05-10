@@ -12,6 +12,7 @@ from telegram.ext import (
 
 from src.config import settings
 from src.telegram_bot.handlers import (
+    clean_tokens_command,
     handle_photo,
     handle_text,
     on_callback,
@@ -43,6 +44,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("status", status_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("clean_tokens", clean_tokens_command, filters=owner_filter)
     )
 
     # Сообщения

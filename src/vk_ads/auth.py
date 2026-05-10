@@ -231,3 +231,47 @@ class VKAdsAuthenticator:
                     await session.commit()
         except Exception as e:
             logger.warning(f"Не смог удалить токен из БД: {e}")
+
+    async def delete_all_remote_tokens(self) -> dict:
+        """Удаляет ВСЕ активные токены VK для этого client_id.
+
+        Использует documented endpoint POST /api/v2/oauth2/token/delete.json.
+        Без параметра username/user_id удаляет токены аккаунта, для которого
+        выдан доступ к API.
+
+        Применять когда упёрлись в лимит токенов (token_limit_exceeded).
+        После успешного удаления invalidate() локальный кэш и можно запросить
+        свежий permanent токен.
+
+        Returns:
+            Словарь с ответом VK (обычно {"success": true} или подобное).
+
+        Raises:
+            VKAdsAuthError: если запрос не прошёл.
+        """
+        delete_url = "https://ads.vk.com/api/v2/oauth2/token/delete.json"
+        data = {
+            "client_id": self.client_id,
+            "client_secret": self.client_secret,
+        }
+        try:
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(delete_url, data=data)
+        except httpx.RequestError as e:
+            raise VKAdsAuthError(f"Сетевая ошибка при удалении токенов: {e}") from e
+
+        if response.status_code not in (200, 204):
+            raise VKAdsAuthError(
+                f"VK вернул {response.status_code} при удалении токенов: "
+                f"{response.text[:300]}"
+            )
+
+        # Успех — чистим локальный кэш тоже
+        await self.invalidate()
+        logger.info("Все удалённые токены VK успешно почищены")
+
+        # VK может вернуть пустой body на 204, парсим аккуратно
+        try:
+            return response.json() if response.text.strip() else {"success": True}
+        except ValueError:
+            return {"success": True, "raw": response.text[:200]}
