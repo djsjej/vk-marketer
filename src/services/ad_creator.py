@@ -172,7 +172,9 @@ class AdCreator:
             "date_start": date_start,
             "date_end": date_end,
             "autobidding_mode": "max_goals",
-            "budget_limit_day": daily_budget_rub_per_group * len(age_splits),
+            # ВАЖНО: VK требует бюджет в КОПЕЙКАХ, не в рублях.
+            # 200 ₽ → 20000 копеек, 1000 ₽ → 100000 копеек.
+            "budget_limit_day": daily_budget_rub_per_group * len(age_splits) * 100,
             "max_price": 0,
             "objective": "socialengagement",
             "ad_object_id": internal_url_id,
@@ -216,7 +218,12 @@ class AdCreator:
         content_id: int,
         internal_url_id: int,
     ) -> dict:
-        """Собрать payload одной ad_group с одним баннером внутри."""
+        """Собрать payload одной ad_group с одним баннером внутри.
+
+        ВАЖНО: budget_limit_day подаётся в КОПЕЙКАХ (200 ₽ → 20000 коп).
+        VK требует бюджеты в наименьших единицах. budget_rub передаётся в рублях,
+        конвертируем здесь.
+        """
         return {
             "name": name,
             "targetings": {
@@ -225,7 +232,7 @@ class AdCreator:
                 "age": {"age_list": age_list},
             },
             "max_price": 0,
-            "budget_limit_day": budget_rub,
+            "budget_limit_day": budget_rub * 100,  # рубли → копейки
             "date_start": date_start,
             "age_restrictions": "0+",
             "package_id": package_id,
