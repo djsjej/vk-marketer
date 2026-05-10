@@ -172,9 +172,10 @@ class AdCreator:
             "date_start": date_start,
             "date_end": date_end,
             "autobidding_mode": "max_goals",
-            # ВАЖНО: VK требует бюджет в КОПЕЙКАХ, не в рублях.
-            # 200 ₽ → 20000 копеек, 1000 ₽ → 100000 копеек.
-            "budget_limit_day": daily_budget_rub_per_group * len(age_splits) * 100,
+            # Бюджет в РУБЛЯХ как int (не копейки, не строка) — этот формат
+            # подтверждён в твоих рабочих n8n-кампаниях прошлого года.
+            "budget_limit_day": daily_budget_rub_per_group * len(age_splits),
+            "budget_limit": None,  # явный null обязателен для VK
             "max_price": 0,
             "objective": "socialengagement",
             "ad_object_id": internal_url_id,
@@ -220,9 +221,10 @@ class AdCreator:
     ) -> dict:
         """Собрать payload одной ad_group с одним баннером внутри.
 
-        ВАЖНО: budget_limit_day подаётся в КОПЕЙКАХ (200 ₽ → 20000 коп).
-        VK требует бюджеты в наименьших единицах. budget_rub передаётся в рублях,
-        конвертируем здесь.
+        Формат полей подтверждён рабочими n8n-кампаниями 2024-2025:
+        - budget_limit_day: int рубли (не копейки, не строка)
+        - budget_limit: null (обязательно)
+        - date_end: null (обязательно для групп без явной даты конца)
         """
         return {
             "name": name,
@@ -232,8 +234,10 @@ class AdCreator:
                 "age": {"age_list": age_list},
             },
             "max_price": 0,
-            "budget_limit_day": budget_rub * 100,  # рубли → копейки
+            "budget_limit_day": budget_rub,  # int рубли
+            "budget_limit": None,  # обязательный явный null
             "date_start": date_start,
+            "date_end": None,  # обязательный явный null на уровне группы
             "age_restrictions": "0+",
             "package_id": package_id,
             "banners": [

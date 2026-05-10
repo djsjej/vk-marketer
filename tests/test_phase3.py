@@ -164,7 +164,7 @@ def test_build_ad_group_includes_age_list():
     )
     assert grp["targetings"]["age"]["age_list"] == [41, 42]
     assert grp["targetings"]["sex"] == ["female"]
-    assert grp["budget_limit_day"] == 20000  # 200 ₽ → 20000 копеек
+    assert grp["budget_limit_day"] == 200  # int рубли
     assert grp["banners"][0]["content"]["image_600x600"]["id"] == 999
 
 
