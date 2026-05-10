@@ -1,7 +1,7 @@
 """VK Ads API клиент.
 
 Использует OAuth-аутентификатор для автоматического получения и обновления
-access_token. Endpoints на target.my.com (VK Реклама API под капотом — myTarget).
+access_token. Endpoints на ads.vk.com (VK Реклама API под капотом — myTarget).
 
 ВАЖНО: Создание объявления = 3 последовательных запроса:
 1. POST /api/v2/content/static.json — получить upload_url
@@ -11,7 +11,7 @@ access_token. Endpoints на target.my.com (VK Реклама API под кап�
 См. src/vk_ads/upload.py для multipart-загрузки.
 См. .claude/skills/vk-ads/SKILL.md для подробностей.
 
-Документация: https://target.my.com/doc/api/ru
+Документация: https://ads.vk.com/help
 """
 
 import logging
@@ -24,7 +24,7 @@ from src.vk_ads.auth import VKAdsAuthenticator
 
 logger = logging.getLogger(__name__)
 
-VK_API_BASE = "https://target.my.com/api/v2"
+VK_API_BASE = "https://ads.vk.com/api/v2"
 
 
 class VKAdsAPIError(Exception):

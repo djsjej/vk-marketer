@@ -1,7 +1,7 @@
 """OAuth 2.0 client_credentials аутентификация для VK Ads API.
 
 VK Реклама (новая) использует myTarget OAuth2 под капотом.
-Endpoint: https://target.my.com/api/v2/oauth2/token.json
+Endpoint: https://ads.vk.com/api/v2/oauth2/token.json
 
 Flow:
 1. POST с grant_type=client_credentials, client_id, client_secret
@@ -9,7 +9,7 @@ Flow:
 3. Кэшируем в памяти, обновляем за 5 минут до истечения
 
 Документация:
-- https://target.my.com/help/advertisers/api_authorization/ru
+- https://ads.vk.com/help/advertisers/api_authorization/ru
 - https://ads.vk.com/help (раздел про API)
 """
 
@@ -21,7 +21,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-OAUTH_URL = "https://target.my.com/api/v2/oauth2/token.json"
+OAUTH_URL = "https://ads.vk.com/api/v2/oauth2/token.json"
 REFRESH_BEFORE_EXPIRY_SEC = 300  # обновляем за 5 минут до истечения
 
 
@@ -77,7 +77,7 @@ class VKAdsAuthenticator:
 
     async def _refresh_token(self) -> None:
         """Запрашивает новый access_token через client_credentials grant."""
-        logger.info("Запрашиваю новый access_token у VK (target.my.com)")
+        logger.info("Запрашиваю новый access_token у VK (ads.vk.com)")
 
         try:
             async with httpx.AsyncClient(timeout=30.0) as client:
