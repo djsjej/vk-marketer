@@ -68,97 +68,15 @@ async def test_get_account_info_success():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_get_balance_extracts_from_client_info():
-    """Если /users/current.json возвращает client_info.balance — извлекаем."""
+async def test_get_balance_returns_none_when_no_agency_endpoint():
+    """Direct cabinet — нет /agency/clients.json, get_balance возвращает None."""
     respx.post(OAUTH_URL).mock(
         return_value=httpx.Response(
             200, json={"access_token": "tk", "expires_in": 86400}
         )
     )
-    # /client.json возвращает 404 — пропустим
-    respx.get(f"{VK_API_BASE}/client.json").mock(
+    respx.get(f"{VK_API_BASE}/agency/clients.json").mock(
         return_value=httpx.Response(404, json={"error": "not found"})
-    )
-    respx.get(f"{VK_API_BASE}/users/current.json").mock(
-        return_value=httpx.Response(
-            200, json={"client_info": {"balance": 2083.5}}
-        )
-    )
-
-    client = VKAdsClient(
-        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s"),
-        account_id=42,
-    )
-    balance = await client.get_balance()
-    assert balance == 2083.5
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_get_balance_extracts_from_client_endpoint_account_balance():
-    """Если /client.json вернул account_balance — это самый приоритетный путь."""
-    respx.post(OAUTH_URL).mock(
-        return_value=httpx.Response(
-            200, json={"access_token": "tk", "expires_in": 86400}
-        )
-    )
-    respx.get(f"{VK_API_BASE}/client.json").mock(
-        return_value=httpx.Response(
-            200, json={"id": 30591625, "name": "Test", "account_balance": 1000.0}
-        )
-    )
-
-    client = VKAdsClient(
-        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s"),
-        account_id=30591625,
-    )
-    balance = await client.get_balance()
-    assert balance == 1000.0
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_get_balance_extracts_from_top_level():
-    """API может класть balance в корень объекта в /users/current.json."""
-    respx.post(OAUTH_URL).mock(
-        return_value=httpx.Response(
-            200, json={"access_token": "tk", "expires_in": 86400}
-        )
-    )
-    respx.get(f"{VK_API_BASE}/client.json").mock(
-        return_value=httpx.Response(404)
-    )
-    respx.get(f"{VK_API_BASE}/users/current.json").mock(
-        return_value=httpx.Response(200, json={"balance": 500.0})
-    )
-
-    client = VKAdsClient(
-        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s"),
-        account_id=42,
-    )
-    assert await client.get_balance() == 500.0
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_get_balance_returns_none_when_field_missing():
-    """Если все 3 эндпоинта вернут ответ без поля баланса — возвращаем None."""
-    respx.post(OAUTH_URL).mock(
-        return_value=httpx.Response(
-            200, json={"access_token": "tk", "expires_in": 86400}
-        )
-    )
-    # /client.json — без баланса
-    respx.get(f"{VK_API_BASE}/client.json").mock(
-        return_value=httpx.Response(200, json={"id": 123, "name": "X"})
-    )
-    # /users/current.json — без баланса
-    respx.get(f"{VK_API_BASE}/users/current.json").mock(
-        return_value=httpx.Response(200, json={"id": 123, "first_name": "X"})
-    )
-    # /clients.json — пустой список
-    respx.get(f"{VK_API_BASE}/clients.json").mock(
-        return_value=httpx.Response(200, json={"items": []})
     )
 
     client = VKAdsClient(
@@ -170,13 +88,41 @@ async def test_get_balance_returns_none_when_field_missing():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_get_campaigns_returns_items():
+async def test_get_balance_extracts_from_agency_clients():
+    """Агентский кабинет — /agency/clients.json возвращает items[].account_balance."""
     respx.post(OAUTH_URL).mock(
         return_value=httpx.Response(
             200, json={"access_token": "tk", "expires_in": 86400}
         )
     )
-    respx.get(f"{VK_API_BASE}/campaigns.json").mock(
+    respx.get(f"{VK_API_BASE}/agency/clients.json").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "items": [
+                    {"id": 1, "name": "Client", "account_balance": 1500.0}
+                ]
+            },
+        )
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s"),
+        account_id=42,
+    )
+    assert await client.get_balance() == 1500.0
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_campaigns_uses_ad_plans_endpoint():
+    """Новый кабинет: get_campaigns должен ходить в /ad_plans.json, не в /campaigns.json."""
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    respx.get(f"{VK_API_BASE}/ad_plans.json").mock(
         return_value=httpx.Response(
             200,
             json={
@@ -193,7 +139,6 @@ async def test_get_campaigns_returns_items():
         authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
     )
     campaigns = await client.get_campaigns()
-
     assert len(campaigns) == 2
     assert campaigns[0]["name"] == "Спиридон"
 
@@ -206,7 +151,7 @@ async def test_get_campaigns_handles_empty_response():
             200, json={"access_token": "tk", "expires_in": 86400}
         )
     )
-    respx.get(f"{VK_API_BASE}/campaigns.json").mock(
+    respx.get(f"{VK_API_BASE}/ad_plans.json").mock(
         return_value=httpx.Response(200, json={"count": 0, "items": []})
     )
 
@@ -214,6 +159,29 @@ async def test_get_campaigns_handles_empty_response():
         authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
     )
     assert await client.get_campaigns() == []
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_ad_groups_uses_correct_endpoint():
+    """get_ad_groups должен ходить в /ad_groups.json."""
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    respx.get(f"{VK_API_BASE}/ad_groups.json").mock(
+        return_value=httpx.Response(
+            200, json={"items": [{"id": 100, "name": "g1", "ad_plan_id": 1}]}
+        )
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    groups = await client.get_ad_groups()
+    assert len(groups) == 1
+    assert groups[0]["id"] == 100
 
 
 @pytest.mark.asyncio
@@ -280,7 +248,7 @@ async def test_get_campaign_stats_builds_correct_url():
             200, json={"access_token": "tk", "expires_in": 86400}
         )
     )
-    route = respx.get(f"{VK_API_BASE}/statistics/campaigns/1;2;3/day.json").mock(
+    route = respx.get(f"{VK_API_BASE}/statistics/ad_plans/day.json").mock(
         return_value=httpx.Response(200, json={"items": []})
     )
 
@@ -289,3 +257,5 @@ async def test_get_campaign_stats_builds_correct_url():
     )
     await client.get_campaign_stats([1, 2, 3], "2026-05-01", "2026-05-09")
     assert route.call_count == 1
+    request = route.calls[0].request
+    assert "id=1%2C2%2C3" in str(request.url) or "id=1,2,3" in str(request.url)

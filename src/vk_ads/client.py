@@ -148,66 +148,43 @@ class VKAdsClient:
 
     # ------------------------------------------------------------------
     # Чтение: информация об аккаунте, баланс, кампании
+    #
+    # ВАЖНО: новый кабинет VK Ads (на ads.vk.com, тип Advertiser) использует
+    # другие эндпоинты чем старый myTarget legacy:
+    # - Кампании: /ad_plans.json (НЕ /campaigns.json)
+    # - Группы: /ad_groups.json
+    # - Статистика: /statistics/ad_groups/day.json или /statistics/ad_plans/day.json
+    # - Баланс: эндпоинт не задокументирован, либо его нет для direct-кабинетов
     # ------------------------------------------------------------------
-
-    async def get_account_info(self) -> dict:
-        """Информация о текущем аккаунте: ФИО, баланс, статус.
-
-        GET /users/current.json
-        """
-        return await self._request("GET", "/users/current.json")
 
     async def get_balance(self) -> float | None:
         """Баланс кабинета в рублях. None если не удалось распарсить.
 
-        Пробует несколько эндпоинтов и форматов ответа последовательно:
-        1. GET /client.json?client_id=<account_id> → account_balance
-           (этот вариант подтверждён в твоих прошлогодних рабочих чатах)
-        2. GET /users/current.json → client_info.balance / balance / account.balance
-        3. GET /clients.json → items[0].account_balance
-
-        При каждой попытке логируем что вернул VK — чтобы при провале можно было
-        посмотреть в логах Railway и понять структуру.
+        Для новых кабинетов VK Ads (тип Advertiser) общедоступного эндпоинта
+        для баланса не задокументировано — он отображается только в UI.
+        Пробуем агентский эндпоинт `/agency/clients.json` на случай если
+        кабинет относится к агентству. Если ничего не нашли — возвращаем None
+        без шума в логах.
         """
-        # Попытка 1: /client.json?client_id=...
-        if self.account_id:
-            try:
-                info = await self._request(
-                    "GET",
-                    "/client.json",
-                    params={"client_id": self.account_id},
-                )
-                logger.info(f"VK /client.json keys: {list(info.keys()) if isinstance(info, dict) else type(info)}")
-                if balance := self._extract_balance_from_dict(info):
-                    return balance
-            except VKAdsAPIError as e:
-                logger.warning(f"/client.json не сработал: {e}")
-
-        # Попытка 2: /users/current.json
         try:
-            info = await self.get_account_info()
-            logger.info(f"VK /users/current.json keys: {list(info.keys()) if isinstance(info, dict) else type(info)}")
-            if balance := self._extract_balance_from_dict(info):
-                return balance
-        except VKAdsAPIError as e:
-            logger.warning(f"/users/current.json не сработал: {e}")
-
-        # Попытка 3: /clients.json (список — берём первый элемент)
-        try:
-            result = await self._request("GET", "/clients.json")
+            result = await self._request("GET", "/agency/clients.json")
             items = (
                 result.get("items", [])
                 if isinstance(result, dict)
                 else (result if isinstance(result, list) else [])
             )
             if items:
-                logger.info(f"VK /clients.json items[0] keys: {list(items[0].keys()) if isinstance(items[0], dict) else type(items[0])}")
+                logger.info(
+                    f"VK /agency/clients.json items[0] keys: "
+                    f"{list(items[0].keys()) if isinstance(items[0], dict) else type(items[0])}"
+                )
                 if balance := self._extract_balance_from_dict(items[0]):
                     return balance
-        except VKAdsAPIError as e:
-            logger.warning(f"/clients.json не сработал: {e}")
+        except VKAdsAPIError:
+            # Direct cabinets don't have agency endpoint — это норма
+            pass
 
-        logger.warning("Не нашёл баланс ни в одном из эндпоинтов")
+        logger.info("Баланс через API недоступен (для новых кабинетов это норма)")
         return None
 
     @staticmethod
@@ -215,8 +192,6 @@ class VKAdsClient:
         """Ищем баланс по списку известных путей в произвольном dict."""
         if not isinstance(info, dict):
             return None
-        # Имена полей и вложенные пути, под которые VK прячет баланс
-        # в разных эндпоинтах/версиях API
         paths = [
             ("account_balance",),
             ("balance",),
@@ -245,58 +220,115 @@ class VKAdsClient:
     async def get_campaigns(
         self, limit: int = 50, offset: int = 0, status: str | None = None
     ) -> list[dict]:
-        """Список рекламных кампаний.
+        """Список рекламных кампаний (ad_plans).
 
-        GET /campaigns.json
+        GET /ad_plans.json — для нового кабинета VK Ads.
+        Старый легаси-эндпоинт /campaigns.json не работает в новом кабинете.
 
         Args:
             limit: сколько вернуть (макс 50 за раз)
             offset: смещение для пагинации
-            status: фильтр по статусу ('active', 'blocked', 'deleted', 'all')
-
-        Returns:
-            Список словарей кампаний с полями id, name, status, budget_limit_day, ...
+            status: фильтр по статусу ('active', 'blocked', 'deleted')
         """
         params: dict[str, Any] = {
             "limit": min(limit, 50),
             "offset": offset,
-            "fields": "id,name,status,budget_limit_day,budget_limit,objective,created,updated",
+            "fields": "id,name,status,objective,date_start,date_end,budget_limit_day,budget_limit",
         }
         if status:
             params["status"] = status
 
-        result = await self._request("GET", "/campaigns.json", params=params)
+        result = await self._request("GET", "/ad_plans.json", params=params)
         if isinstance(result, dict):
             return result.get("items", [])
         if isinstance(result, list):
             return result
         return []
 
+    async def get_ad_groups(
+        self,
+        limit: int = 100,
+        offset: int = 0,
+        ad_plan_id: int | None = None,
+    ) -> list[dict]:
+        """Список групп объявлений (ad_groups). Опционально фильтр по кампании.
+
+        GET /ad_groups.json
+        """
+        params: dict[str, Any] = {
+            "limit": min(limit, 100),
+            "offset": offset,
+            "fields": "id,ad_plan_id,name,status,targetings,banners,delivery,budget_limit_day",
+        }
+        if ad_plan_id:
+            params["_ad_plan_id"] = ad_plan_id  # фильтр в новом API через _-префикс
+
+        result = await self._request("GET", "/ad_groups.json", params=params)
+        if isinstance(result, dict):
+            return result.get("items", [])
+        if isinstance(result, list):
+            return result
+        return []
+
+    async def get_ad_groups_stats(
+        self,
+        date_from: str,
+        date_to: str,
+        ad_group_ids: list[int] | None = None,
+        metrics: str = "all",
+    ) -> dict:
+        """Метрики групп объявлений за период.
+
+        GET /statistics/ad_groups/day.json?date_from=...&date_to=...&metrics=all
+        Возвращает items[].rows[] — данные по дням.
+
+        Args:
+            date_from: YYYY-MM-DD
+            date_to: YYYY-MM-DD
+            ad_group_ids: если не задано — возвращает по всем группам кабинета
+            metrics: 'all' / 'base' / 'uniques' / etc.
+        """
+        params: dict[str, Any] = {
+            "date_from": date_from,
+            "date_to": date_to,
+            "metrics": metrics,
+        }
+        if ad_group_ids:
+            params["id"] = ",".join(str(i) for i in ad_group_ids)
+        return await self._request("GET", "/statistics/ad_groups/day.json", params=params)
+
     async def get_campaign_stats(
         self,
         campaign_ids: list[int],
         date_from: str,
         date_to: str,
-        metrics: str = "base",
+        metrics: str = "all",
     ) -> dict:
-        """Метрики кампаний за период.
+        """Метрики кампаний (ad_plans) за период.
 
-        GET /statistics/campaigns/{ids}/day.json?date_from=...&date_to=...
-
-        Args:
-            campaign_ids: список ID кампаний
-            date_from: начало периода в формате YYYY-MM-DD
-            date_to: конец периода YYYY-MM-DD
-            metrics: 'base' (показы, клики, расход) или 'all'
+        GET /statistics/ad_plans/day.json?date_from=...&date_to=...&id=1,2,3&metrics=all
         """
         if not campaign_ids:
             return {"items": []}
-        ids_str = ";".join(str(cid) for cid in campaign_ids)
         return await self._request(
             "GET",
-            f"/statistics/campaigns/{ids_str}/day.json",
-            params={"date_from": date_from, "date_to": date_to, "metrics": metrics},
+            "/statistics/ad_plans/day.json",
+            params={
+                "id": ",".join(str(cid) for cid in campaign_ids),
+                "date_from": date_from,
+                "date_to": date_to,
+                "metrics": metrics,
+            },
         )
+
+    # account_info как public method больше не имеет смысла —
+    # /users/current.json не существует в новом кабинете.
+    async def get_account_info(self) -> dict:
+        """DEPRECATED: эндпоинт /users/current.json удалён в новом кабинете VK Ads.
+
+        Оставлен для совместимости с тестами, всегда падает с 404.
+        """
+        return await self._request("GET", "/users/current.json")
 
     # ------------------------------------------------------------------
     # Загрузка контента (картинок) — отдельный модуль upload.py,

@@ -99,7 +99,10 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         if balance is not None:
             lines.append(f"💰 Баланс: *{balance:.0f} ₽*")
         else:
-            lines.append("💰 Баланс: не удалось получить")
+            lines.append(
+                "💰 Баланс: смотри в кабинете VK\n"
+                "_(API нового кабинета не отдаёт баланс)_"
+            )
 
         lines.append(f"🆔 Кабинет: `{settings.vk_ads_account_id}`")
         lines.append("")
