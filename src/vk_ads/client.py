@@ -451,29 +451,66 @@ class VKAdsClient:
     async def create_ad_plan(self, payload: dict) -> dict:
         """Создать рекламную кампанию (ad_plan).
 
-        POST /ad_plans.json
+        POST /ad_plans.json с body `{"campaigns": [<payload>]}`.
 
-        Payload может содержать вложенные ad_groups (а те — banners),
-        тогда всё создастся за один запрос.
+        VK Ads API трактует /ad_plans.json как BATCH endpoint — ожидает массив
+        кампаний даже для одиночного создания. Без обёртки получаем ошибку
+        `validation_failed: campaigns required`.
 
         Returns:
-            Полный словарь созданного ad_plan, включая id и id вложенных групп/баннеров.
+            Распакованный первый элемент ответа — словарь созданного ad_plan
+            с полем `id`.
         """
-        return await self._request("POST", "/ad_plans.json", json_body=payload)
+        response = await self._request(
+            "POST", "/ad_plans.json", json_body={"campaigns": [payload]}
+        )
+        return self._unwrap_batch_response(response, key="campaigns")
 
     async def create_ad_group(self, payload: dict) -> dict:
-        """Создать группу объявлений отдельно (если кампания уже есть).
+        """Создать группу объявлений отдельно.
 
-        POST /ad_groups.json. Должно содержать ad_plan_id.
+        POST /ad_groups.json с body `{"ad_groups": [<payload>]}`. Payload должен
+        содержать ad_plan_id.
         """
-        return await self._request("POST", "/ad_groups.json", json_body=payload)
+        response = await self._request(
+            "POST", "/ad_groups.json", json_body={"ad_groups": [payload]}
+        )
+        return self._unwrap_batch_response(response, key="ad_groups")
 
     async def create_banner(self, payload: dict) -> dict:
-        """Создать одиночное объявление в существующей группе.
+        """Создать одиночное объявление.
 
-        POST /banners.json. Должно содержать ad_group_id и content (id картинки).
+        POST /banners.json с body `{"banners": [<payload>]}`. Payload должен
+        содержать ad_group_id и content.
         """
-        return await self._request("POST", "/banners.json", json_body=payload)
+        response = await self._request(
+            "POST", "/banners.json", json_body={"banners": [payload]}
+        )
+        return self._unwrap_batch_response(response, key="banners")
+
+    @staticmethod
+    def _unwrap_batch_response(response: Any, key: str) -> dict:
+        """Распаковывает batch-ответ VK Ads в первый элемент.
+
+        Возможные форматы ответа:
+        - {"campaigns": [{...}]} или {"ad_groups": [{...}]} итд
+        - [{...}]
+        - {"items": [{...}]}
+        - {...} — уже распакованный (на всякий случай)
+        """
+        if isinstance(response, dict):
+            for k in (key, "items"):
+                items = response.get(k)
+                if isinstance(items, list) and items:
+                    return items[0]
+            # Может прийти уже распакованный (с id в корне)
+            if "id" in response:
+                return response
+        elif isinstance(response, list) and response:
+            return response[0]
+        raise VKAdsAPIError(
+            f"Не смог распаковать batch-ответ VK для {key}: {response}"
+        )
 
     # ------------------------------------------------------------------
     # Управление статусом — Phase 4
