@@ -521,3 +521,84 @@ async def test_template_flow_creates_groups_with_banners_in_existing_plan():
     assert summary.ad_plan_id == 20865519
     assert summary.ad_group_ids == [8001, 8002, 8003]
     assert summary.banner_ids == [9001, 9002, 9003]
+
+
+# --- Phase 4: Statistics API v3 ---
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_statistics_v3_ad_plans_basic():
+    """v3 statistics: правильный URL и параметры в запросе."""
+    import json as _json
+
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(200, json={"access_token": "tk", "expires_in": 86400})
+    )
+    # Важно: v3 endpoint, не v2!
+    route = respx.get("https://ads.vk.com/api/v3/statistics/ad_plans/day.json").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "items": [
+                    {
+                        "id": 20865519,
+                        "total": {
+                            "base": {
+                                "shows": 1500, "clicks": 12,
+                                "ctr": 0.8, "spent": "350.00",
+                                "cpm": "233.33", "cpc": "29.17",
+                            },
+                            "events": {"joinings": 2, "likes": 5, "moving_into_group": 8},
+                            "uniques": {"total": 1250, "frequency": 1.2},
+                            "social_network": {"vk_join": 2, "result_join": 2},
+                        },
+                    }
+                ],
+                "total": {"base": {"shows": 1500, "clicks": 12, "ctr": 0.8, "spent": "350.00"}},
+                "limit": 50, "offset": 0, "count": 1,
+            },
+        )
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    result = await client.get_statistics_v3(
+        object_type="ad_plans",
+        ids=[20865519],
+        date_from="2026-05-05",
+        date_to="2026-05-12",
+    )
+
+    # Проверяем что попали в v3 endpoint
+    assert route.called
+    call = route.calls[0]
+    qs = dict(call.request.url.params)
+    assert qs["id"] == "20865519"
+    assert qs["date_from"] == "2026-05-05"
+    assert qs["date_to"] == "2026-05-12"
+    assert "base" in qs["fields"]
+    assert "events" in qs["fields"]
+    # Парсинг
+    assert result["items"][0]["total"]["base"]["ctr"] == 0.8
+    assert result["items"][0]["total"]["events"]["joinings"] == 2
+
+
+@pytest.mark.asyncio
+async def test_get_statistics_v3_validates_object_type():
+    """Невалидный object_type → ValueError."""
+    client = VKAdsClient(static_token="x")
+    with pytest.raises(ValueError, match="object_type"):
+        await client.get_statistics_v3(
+            object_type="invalid", ids=[1], date_from="2026-05-01"
+        )
+
+
+@pytest.mark.asyncio
+async def test_get_statistics_v3_limits_ids_to_200():
+    """>200 ids → ValueError (VK API limit)."""
+    client = VKAdsClient(static_token="x")
+    with pytest.raises(ValueError, match="200"):
+        await client.get_statistics_v3(
+            object_type="ad_groups", ids=list(range(201)), date_from="2026-05-01"
+        )

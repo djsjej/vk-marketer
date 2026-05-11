@@ -129,14 +129,16 @@ class VKAdsClient:
         path: str,
         params: dict | None = None,
         json_body: dict | None = None,
+        api_version: str = "v2",
     ) -> Any:
         """Универсальный запрос с автоматической авторизацией.
 
         Args:
             method: HTTP метод (GET, POST, и т.д.)
-            path: путь от VK_API_BASE (например '/users/current.json')
+            path: путь от base (например '/users/current.json')
             params: query параметры
             json_body: JSON тело (для POST/PUT)
+            api_version: 'v2' (default) или 'v3' — для statistics v3
 
         Returns:
             Распарсенный JSON ответа
@@ -145,13 +147,18 @@ class VKAdsClient:
             VKAdsAPIError: на любой не-2xx ответ
         """
         token = await self._get_token()
-        url = f"{VK_API_BASE}{path}"
+        base = (
+            VK_API_BASE
+            if api_version == "v2"
+            else VK_API_BASE.replace("/api/v2", f"/api/{api_version}")
+        )
+        url = f"{base}{path}"
         headers = {
             "Authorization": f"Bearer {token}",
             "Content-Type": "application/json",
         }
 
-        logger.debug(f"VK API {method} {path} params={params}")
+        logger.debug(f"VK API {method} {path} (v{api_version}) params={params}")
 
         async with httpx.AsyncClient(timeout=30.0) as client:
             response = await client.request(
@@ -516,6 +523,110 @@ class VKAdsClient:
                 "date_to": date_to,
                 "metrics": metrics,
             },
+        )
+
+    # --- v3 Statistics API (для команды /analyze и Phase 4) ---
+    # См. docs/VK_STATISTICS_API.md
+    # Главные отличия от v2:
+    #  - параметр `fields` вместо `metrics` (тот же набор: base, events, etc.)
+    #  - поддержка пагинации (limit, offset)
+    #  - сортировка через sort_by
+    #  - фильтры по статусам (banner_status, ad_group_status)
+
+    async def get_statistics_v3(
+        self,
+        *,
+        object_type: str,  # 'ad_plans' | 'ad_groups' | 'banners' | 'users'
+        ids: list[int],
+        date_from: str,
+        date_to: str | None = None,
+        fields: str = "base,events,uniques,social_network",
+        attribution: str = "conversion",
+        sort_by: str | None = None,
+        sort_dir: str = "desc",
+        limit: int = 50,
+        offset: int = 0,
+    ) -> dict:
+        """v3 Statistics API — основной метод для аналитики.
+
+        GET /api/v3/statistics/{object_type}/day.json
+
+        Args:
+            object_type: 'ad_plans', 'ad_groups', 'banners', 'users'
+            ids: список ID объектов (макс 200)
+            date_from: YYYY-MM-DD (обязательно)
+            date_to: YYYY-MM-DD (по умолчанию текущая дата)
+            fields: наборы метрик через запятую: 'base', 'events',
+                'uniques', 'social_network', 'video', 'all', etc.
+                Для нашего use case (socialengagement, package 3122) дефолт
+                'base,events,uniques,social_network' покрывает CTR, CPL,
+                joinings, vk_join, охват.
+            attribution: 'conversion' (default) или 'impression'
+            sort_by: напр. 'base.clicks' или 'base.ctr'
+            sort_dir: 'asc' | 'desc'
+            limit: макс 250
+            offset: для пагинации
+
+        Returns:
+            {"items": [{"id": ..., "total": {"base": {...}, ...}}, ...],
+             "total": {...},  # суммарно по всем
+             "limit": 50, "offset": 0, "count": N}
+
+        Raises:
+            VKAdsAPIError на 4xx/5xx (включая ERR_LIMIT_EXCEEDED если >200 ids).
+        """
+        if object_type not in ("ad_plans", "ad_groups", "banners", "users"):
+            raise ValueError(
+                f"object_type должен быть ad_plans/ad_groups/banners/users, не {object_type}"
+            )
+        if len(ids) > 200:
+            raise ValueError(f"максимум 200 объектов в запросе, не {len(ids)}")
+
+        params: dict[str, Any] = {
+            "id": ",".join(str(i) for i in ids),
+            "date_from": date_from,
+            "fields": fields,
+            "attribution": attribution,
+            "limit": limit,
+            "offset": offset,
+        }
+        if date_to:
+            params["date_to"] = date_to
+        if sort_by:
+            params["sort_by"] = sort_by
+            params["d"] = sort_dir
+
+        return await self._request(
+            "GET",
+            f"/statistics/{object_type}/day.json",
+            params=params,
+            api_version="v3",
+        )
+
+    async def get_faststat_v3(
+        self,
+        *,
+        object_type: str,  # 'ad_plans' | 'banners' | 'campaigns' | 'users'
+        ids: list[int],
+    ) -> dict:
+        """v3 Real-time статистика за последние 60 минут (поминутно).
+
+        GET /api/v3/statistics/faststat/{object_type}.json
+
+        Без учёта фильтрации некорректного трафика. Значения могут
+        отличаться от итоговой статистики.
+
+        Returns:
+            {"last_seen_msg_time": {...},
+             "<object_type>": {"<id>": {"timestamp": ..., "minutely": {
+               "clicks": [60 значений], "shows": [60 значений]
+             }}}}
+        """
+        return await self._request(
+            "GET",
+            f"/statistics/faststat/{object_type}.json",
+            params={"id": ",".join(str(i) for i in ids)},
+            api_version="v3",
         )
 
     # account_info как public method больше не имеет смысла —
