@@ -126,6 +126,94 @@ async def clean_tokens_command(update: Update, context: ContextTypes.DEFAULT_TYP
     )
 
 
+async def inspect_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Диагностика: сырая структура кампании из VK Ads API.
+
+    /inspect            — список последних кампаний (id + name + status)
+    /inspect <ad_plan_id> — полная структура: кампания + её группы + баннеры
+
+    Используется чтобы сравнить кампанию, созданную вручную через UI кабинета,
+    с тем что собирает наш AdCreator. Помогает понять реальную структуру
+    payload, которую VK ожидает.
+    """
+    import json
+
+    if not settings.vk_configured:
+        await update.message.reply_text(
+            "⚠️ VK Ads клиент не настроен.\n\n"
+            "Нужно задать в env vars: VK_ADS_OAUTH_CLIENT_ID и VK_ADS_OAUTH_CLIENT_SECRET"
+        )
+        return
+
+    client = VKAdsClient.from_settings()
+    if client is None:
+        await update.message.reply_text("⚠️ Не удалось создать VK Ads клиент")
+        return
+
+    placeholder = await update.message.reply_text("⏳ Запрашиваю данные из VK Ads API...")
+
+    try:
+        args = context.args or []
+        result: dict = {}
+
+        if args:
+            ad_plan_id = args[0].strip()
+            # 1) Сама кампания с расширенным набором полей
+            plan = await client.get_ad_plan_raw(ad_plan_id)
+            result["ad_plan"] = plan
+
+            # 2) Группы этой кампании (со всеми полями включая patterns/package_id)
+            try:
+                groups = await client.get_ad_groups(ad_plan_id=int(ad_plan_id))
+            except ValueError:
+                groups = []
+            result["ad_groups"] = groups
+
+            # 3) Баннеры для каждой группы — отдельным запросом с patterns
+            banners_per_group = []
+            for g in groups:
+                gid = g.get("id")
+                if gid is None:
+                    continue
+                bs = await client.get_banners_raw(ad_group_id=int(gid))
+                banners_per_group.append({"ad_group_id": gid, "banners": bs})
+            result["banners"] = banners_per_group
+        else:
+            # Без аргумента — список последних кампаний для выбора
+            campaigns = await client.get_campaigns(limit=20)
+            result["recent_campaigns"] = [
+                {
+                    "id": c.get("id"),
+                    "name": c.get("name"),
+                    "status": c.get("status"),
+                    "objective": c.get("objective"),
+                    "date_start": c.get("date_start"),
+                }
+                for c in campaigns
+            ]
+            result["_hint"] = (
+                "Вызови /inspect <id> с ID нужной кампании для полной структуры"
+            )
+
+        payload = json.dumps(result, ensure_ascii=False, indent=2, default=str)
+
+        await placeholder.delete()
+        filename = f"inspect_{args[0] if args else 'list'}.json"
+        await update.message.reply_document(
+            document=BytesIO(payload.encode("utf-8")),
+            filename=filename,
+            caption=(
+                f"🔍 Сырая структура VK Ads API\n"
+                f"Размер: {len(payload)} символов"
+            ),
+        )
+    except Exception as e:
+        logger.exception("inspect_command failed")
+        await placeholder.edit_text(f"❌ Ошибка: {type(e).__name__}: {e}")
+    finally:
+        await client.close()
+
+
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Реальный статус кабинета через VK Ads API."""
     if not settings.vk_configured:

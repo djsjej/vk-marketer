@@ -15,6 +15,7 @@ from src.telegram_bot.handlers import (
     clean_tokens_command,
     handle_photo,
     handle_text,
+    inspect_command,
     on_callback,
     start_command,
     help_command,
@@ -47,6 +48,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("clean_tokens", clean_tokens_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("inspect", inspect_command, filters=owner_filter)
     )
 
     # Сообщения

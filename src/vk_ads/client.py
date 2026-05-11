@@ -326,6 +326,57 @@ class VKAdsClient:
             return result
         return []
 
+    async def get_ad_plan_raw(self, ad_plan_id: int | str) -> dict | None:
+        """Полная сырая структура одной кампании (ad_plan) с максимумом полей.
+
+        Используется для диагностики — посмотреть как реально выглядит
+        кампания, созданная вручную через UI кабинета, чтобы сверить
+        нашу сборку payload в /services/ad_creator.py.
+
+        GET /ad_plans.json?_id=<id>&fields=...
+        """
+        params: dict[str, Any] = {
+            "_id": str(ad_plan_id),
+            "fields": (
+                "id,name,status,objective,ad_object_type,ad_object_id,"
+                "date_start,date_end,budget_limit_day,budget_limit,"
+                "max_price,autobidding_mode,priced_goal,utm,created,updated"
+            ),
+        }
+        result = await self._request("GET", "/ad_plans.json", params=params)
+        if isinstance(result, dict):
+            items = result.get("items") or []
+            return items[0] if items else None
+        if isinstance(result, list) and result:
+            return result[0]
+        return None
+
+    async def get_banners_raw(
+        self, ad_group_id: int | None = None, limit: int = 50
+    ) -> list[dict]:
+        """Список объявлений (banners) с максимумом полей, включая patterns.
+
+        Используется для диагностики — увидеть structure banner'а живой
+        кампании (где у patterns, какие там значения и т.п.).
+
+        GET /banners.json?fields=...
+        """
+        params: dict[str, Any] = {
+            "limit": min(limit, 50),
+            "fields": (
+                "id,ad_group_id,name,status,patterns,urls,textblocks,content,"
+                "moderation_status,moderation_reasons,created,updated"
+            ),
+        }
+        if ad_group_id:
+            params["_ad_group_id"] = ad_group_id
+        result = await self._request("GET", "/banners.json", params=params)
+        if isinstance(result, dict):
+            return result.get("items", [])
+        if isinstance(result, list):
+            return result
+        return []
+
     async def get_ad_groups(
         self,
         limit: int = 100,
@@ -339,7 +390,11 @@ class VKAdsClient:
         params: dict[str, Any] = {
             "limit": min(limit, 100),
             "offset": offset,
-            "fields": "id,ad_plan_id,name,status,targetings,banners,delivery,budget_limit_day",
+            "fields": (
+                "id,ad_plan_id,name,status,targetings,banners,delivery,"
+                "budget_limit_day,budget_limit,package_id,patterns,"
+                "age_restrictions,max_price,date_start,date_end"
+            ),
         }
         if ad_plan_id:
             params["_ad_plan_id"] = ad_plan_id  # фильтр в новом API через _-префикс
