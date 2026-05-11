@@ -28,7 +28,41 @@ VK_API_BASE = "https://ads.vk.com/api/v2"
 
 
 class VKAdsAPIError(Exception):
-    """Ошибка VK Ads API."""
+    """Ошибка VK Ads API.
+
+    Хранит диагностические данные для тикетов в поддержку VK:
+    - status_code: HTTP-код ответа
+    - request_id: значение x-request-id из response headers (поддержка просит
+      именно его чтобы найти запрос в их логах)
+    - request_time: дата/время ответа в ISO 8601 UTC формате
+    - body: первые 500 символов тела ответа
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int | None = None,
+        request_id: str | None = None,
+        request_time: str | None = None,
+        body: str | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.request_id = request_id
+        self.request_time = request_time
+        self.body = body
+
+    def diag_summary(self) -> str:
+        """Краткая diag-сводка для пересылки в поддержку VK."""
+        parts = []
+        if self.status_code is not None:
+            parts.append(f"HTTP {self.status_code}")
+        if self.request_id:
+            parts.append(f"x-request-id: {self.request_id}")
+        if self.request_time:
+            parts.append(f"time: {self.request_time}")
+        return " | ".join(parts) if parts else "(нет диагностических данных)"
 
 
 class VKAdsClient:
@@ -136,9 +170,29 @@ class VKAdsClient:
                 )
 
         if response.status_code >= 400:
+            # Извлекаем x-request-id и время — поддержка VK просит именно
+            # эти данные чтобы найти запрос в их серверных логах.
+            req_id = (
+                response.headers.get("x-request-id")
+                or response.headers.get("X-Request-Id")
+                or response.headers.get("request-id")
+            )
+            # Время: предпочитаем Date header от VK сервера; fallback на наш UTC.
+            from datetime import datetime, timezone
+            date_hdr = response.headers.get("date") or response.headers.get("Date")
+            req_time = date_hdr or datetime.now(timezone.utc).isoformat()
+
+            body_text = response.text[:500]
+            logger.error(
+                "VK API error %s on %s %s | x-request-id=%s | time=%s | body=%s",
+                response.status_code, method, path, req_id, req_time, body_text,
+            )
             raise VKAdsAPIError(
-                f"VK API {method} {path} вернул {response.status_code}: "
-                f"{response.text[:500]}"
+                f"VK API {method} {path} вернул {response.status_code}: {body_text}",
+                status_code=response.status_code,
+                request_id=req_id,
+                request_time=req_time,
+                body=body_text,
             )
 
         try:

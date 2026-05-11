@@ -37,7 +37,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from src.vk_ads.client import VKAdsClient
+from src.vk_ads.client import VKAdsAPIError, VKAdsClient
 
 logger = logging.getLogger(__name__)
 
@@ -83,7 +83,20 @@ class CampaignSummary:
 
 
 class AdCreatorError(Exception):
-    """Ошибка при создании кампании."""
+    """Ошибка при создании кампании.
+
+    Если ошибка пришла из VK API — содержит диагностические данные:
+    request_id, request_time, status_code (для пересылки в поддержку VK).
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        vk_error: "VKAdsAPIError | None" = None,
+    ) -> None:
+        super().__init__(message)
+        self.vk_error = vk_error
 
 
 class AdCreator:
@@ -259,6 +272,12 @@ class AdCreator:
         )
         try:
             response = await self.vk.create_ad_plan(ad_plan_payload)
+        except VKAdsAPIError as e:
+            # Пробрасываем VKAdsAPIError целиком — у него внутри request_id и
+            # время, которые нужны для тикетов в поддержку VK.
+            raise AdCreatorError(
+                f"VK не принял ad_plan: {e}", vk_error=e
+            ) from e
         except Exception as e:
             raise AdCreatorError(f"VK не принял ad_plan: {e}") from e
 

@@ -555,10 +555,12 @@ async def _create_campaign_from_pending(
         )
     except AdCreatorError as e:
         logger.error(f"AdCreator упал: {e}")
-        await query.edit_message_text(
-            f"❌ Не удалось создать кампанию:\n\n`{str(e)[:500]}`",
-            parse_mode="Markdown",
-        )
+        # Если ошибка пришла из VK API — добавляем diag-данные для тикета
+        # в поддержку VK (x-request-id + точное время).
+        msg = f"❌ Не удалось создать кампанию:\n\n`{str(e)[:400]}`"
+        if e.vk_error is not None:
+            msg += f"\n\n🔧 *Для тикета в VK:*\n`{e.vk_error.diag_summary()}`"
+        await query.edit_message_text(msg, parse_mode="Markdown")
         return
     except VKAdsAuthError as e:
         await query.edit_message_text(
