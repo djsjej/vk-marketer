@@ -349,6 +349,28 @@ class AdCreator:
         if not age_splits:
             raise AdCreatorError("age_splits пустой")
 
+        # 0. Узнаём budget_limit_day шаблонной кампании. VK требует чтобы
+        # budget_limit_day у новой ad_group совпадал с бюджетом ad_plan
+        # (или соответствовал каким-то правилам, которые мы не знаем).
+        # На дефолтном значении 100 ₽ VK возвращал unallowed_value.
+        # В рабочей кампании (inspect) у всех групп budget_limit_day = 420.0
+        # (как у ad_plan). Подтягиваем динамически.
+        ad_plan_budget: float | int = daily_budget_rub_per_group
+        try:
+            plan_info = await self.vk.get_ad_plan_raw(template_ad_plan_id)
+            if plan_info and plan_info.get("budget_limit_day") is not None:
+                ad_plan_budget = plan_info["budget_limit_day"]
+                logger.info(
+                    f"[groups-in-template] подтянул budget_limit_day={ad_plan_budget} "
+                    f"из ad_plan {template_ad_plan_id}"
+                )
+        except Exception as e:
+            # Не критично — продолжаем с переданным дефолтом
+            logger.warning(
+                f"Не смог получить budget_limit_day у ad_plan {template_ad_plan_id}: {e}. "
+                f"Использую дефолт {daily_budget_rub_per_group}."
+            )
+
         # 1. Регистрируем URL
         try:
             url_info = await self.vk.get_or_register_url(community_url)
@@ -383,7 +405,7 @@ class AdCreator:
                 "ad_plan_id": template_ad_plan_id,
                 "name": group_name,
                 "status": "active",
-                "budget_limit_day": daily_budget_rub_per_group,
+                "budget_limit_day": ad_plan_budget,
                 "budget_limit": None,
                 "package_id": package_id,
                 "age_restrictions": "0+",
