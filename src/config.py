@@ -47,6 +47,25 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Шаблонная кампания (workaround) ---
+    # Из-за особенности VK Ads API нельзя создавать кампанию с нуля через
+    # POST /ad_plans.json (package_id 3122 имеет пустые settings.patterns).
+    # Workaround: один раз вручную создаём «шаблонную» кампанию с группами
+    # через UI кабинета, и бот добавляет в неё новые banner через
+    # POST /banners.json (это работает без проблем).
+    vk_template_ad_plan_id: int | None = Field(
+        None,
+        description="ID шаблонной кампании, в которую бот добавляет banner.",
+    )
+    vk_template_ad_group_ids: str | None = Field(
+        None,
+        description=(
+            "ID групп шаблонной кампании через запятую "
+            "(например '137881410,137893759,137893760'). Бот создаёт по одному "
+            "banner в каждую группу."
+        ),
+    )
+
     @field_validator(
         "vk_ads_token",
         "vk_ads_oauth_client_id",
@@ -104,6 +123,25 @@ class Settings(BaseSettings):
     def vk_configured(self) -> bool:
         """VK Ads клиент может работать (есть либо OAuth, либо прямой токен)."""
         return self.has_vk_oauth or self.has_vk_static_token
+
+    @property
+    def vk_template_group_ids_parsed(self) -> list[int]:
+        """ID групп шаблонной кампании в виде списка int."""
+        if not self.vk_template_ad_group_ids:
+            return []
+        return [
+            int(x.strip())
+            for x in self.vk_template_ad_group_ids.split(",")
+            if x.strip().isdigit()
+        ]
+
+    @property
+    def has_template_campaign(self) -> bool:
+        """Template-кампания сконфигурирована."""
+        return (
+            self.vk_template_ad_plan_id is not None
+            and len(self.vk_template_group_ids_parsed) > 0
+        )
 
 
 # Singleton — импортируется модулями

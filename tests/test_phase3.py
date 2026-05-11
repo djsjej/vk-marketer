@@ -401,3 +401,126 @@ async def test_update_budget_requires_at_least_one_param():
     client = VKAdsClient(static_token="x")
     with pytest.raises(ValueError, match="хотя бы один"):
         await client.update_ad_plan_budget(1)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_create_banners_in_template_groups_creates_one_per_group():
+    """Workaround-флоу: для каждой template-группы создаётся ровно один banner
+    через POST /banners.json. ad_plan не создаётся (используется существующий
+    template_ad_plan_id).
+    """
+    import json
+
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    respx.get("https://ads.vk.com/api/v1/urls/").mock(
+        return_value=httpx.Response(
+            200,
+            json={"id": 12345, "url": "https://vk.com/test", "url_object_id": 67890},
+        )
+    )
+    respx.post(VK_CONTENT_STATIC_URL).mock(
+        return_value=httpx.Response(200, json={"id": 555, "variants": {}})
+    )
+    # ad_plans.json НЕ должен вызываться в этом флоу
+    ad_plans_route = respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
+        return_value=httpx.Response(500, text="должно не вызываться")
+    )
+    # Каждый banner получает свой ID, начиная с 9001
+    banner_call_idx = {"i": 0}
+
+    def _banner_response(request):
+        banner_call_idx["i"] += 1
+        return httpx.Response(
+            200,
+            json={"banners": [{"id": 9000 + banner_call_idx["i"]}]},
+        )
+
+    banners_route = respx.post(f"{VK_API_BASE}/banners.json").mock(
+        side_effect=_banner_response
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    creator = AdCreator(client)
+    summary = await creator.create_banners_in_template_groups(
+        image_bytes=b"img",
+        copy=AdCopy(title="T", text="T", about="T"),
+        community_url="https://vk.com/test",
+        template_ad_plan_id=20865519,
+        template_ad_group_ids=[137881410, 137893759, 137893760],
+    )
+
+    # 1) ad_plan не создавался
+    assert ad_plans_route.call_count == 0, (
+        "create_banners_in_template_groups не должен трогать /ad_plans.json"
+    )
+    # 2) Один POST /banners.json на каждую template-группу
+    assert banners_route.call_count == 3
+    # 3) В каждом banner payload — правильный ad_group_id
+    for i, gid in enumerate([137881410, 137893759, 137893760]):
+        body = json.loads(banners_route.calls[i].request.read())
+        assert body["banners"][0]["ad_group_id"] == gid
+    # 4) Summary имеет template-id и список banner-id
+    assert summary.ad_plan_id == 20865519
+    assert summary.banner_ids == [9001, 9002, 9003]
+    assert summary.ad_group_ids == [137881410, 137893759, 137893760]
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_create_banners_in_template_continues_on_partial_failure():
+    """Если один banner упал, остальные продолжают создаваться. Если все упали —
+    raise AdCreatorError с диагностикой VK.
+    """
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    respx.get("https://ads.vk.com/api/v1/urls/").mock(
+        return_value=httpx.Response(
+            200,
+            json={"id": 12345, "url": "https://vk.com/test", "url_object_id": 67890},
+        )
+    )
+    respx.post(VK_CONTENT_STATIC_URL).mock(
+        return_value=httpx.Response(200, json={"id": 555, "variants": {}})
+    )
+
+    # 3 группы: первая упадёт 400, вторая ок, третья ок
+    call_counter = {"i": 0}
+
+    def _banner_response(request):
+        call_counter["i"] += 1
+        if call_counter["i"] == 1:
+            return httpx.Response(
+                400,
+                headers={"x-request-id": "fail-1"},
+                json={"error": {"code": "validation_failed"}},
+            )
+        return httpx.Response(
+            200,
+            json={"banners": [{"id": 9000 + call_counter["i"]}]},
+        )
+
+    respx.post(f"{VK_API_BASE}/banners.json").mock(side_effect=_banner_response)
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    creator = AdCreator(client)
+    summary = await creator.create_banners_in_template_groups(
+        image_bytes=b"img",
+        copy=AdCopy(title="T", text="T", about="T"),
+        community_url="https://vk.com/test",
+        template_ad_plan_id=20865519,
+        template_ad_group_ids=[111, 222, 333],
+    )
+    # Только два banner создались (1-й упал)
+    assert summary.banner_ids == [9002, 9003]
