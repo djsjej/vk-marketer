@@ -42,6 +42,21 @@ from src.vk_ads.client import VKAdsClient
 logger = logging.getLogger(__name__)
 
 
+# patterns — ID допустимых размещений (placements) для package_id 3122.
+# VK прислал валидный список в ошибке валидации первой попытки создать кампанию.
+# Берём все 13 — максимум площадок (лента, сторис, сайдбар и т.д.).
+#
+# ВАЖНО: patterns живут на уровне ad_group (campaigns[N] в payload ad_plan),
+# НЕ внутри banner. Когда patterns стояли в banner, VK отвечал:
+#   "unknown_resource_field: Unknown fields: patterns"
+# на путь campaigns[0].banners[0].fields.fields.
+# Логика: patterns зависят от package_id, а package_id определён на уровне
+# группы — поэтому и patterns там же.
+DEFAULT_PATTERNS_PACKAGE_3122: list[int] = [
+    486, 422, 525, 527, 400, 401, 530, 338, 529, 339, 150, 145, 537,
+]
+
+
 @dataclass
 class AdCopy:
     """Текст одного объявления — что Claude или пользователь сгенерил."""
@@ -173,12 +188,10 @@ class AdCreator:
                 "date_end": None,
                 "age_restrictions": "0+",
                 "package_id": package_id,
+                # patterns — на уровне ad_group, НЕ внутри banner (см. константу).
+                "patterns": list(DEFAULT_PATTERNS_PACKAGE_3122),
                 "banners": [{
                     "name": f"{group_name} | {copy.title[:30]}",
-                    # patterns — ID допустимых размещений (placements) для данного
-                    # package_id. VK выдал нам валидный список в ошибке валидации.
-                    # Берём все 13 — покажет везде где это возможно.
-                    "patterns": [486, 422, 525, 527, 400, 401, 530, 338, 529, 339, 150, 145, 537],
                     "urls": {"primary": {"id": internal_url_id}},
                     "textblocks": {
                         "title_40_vkads": {"text": copy.title[:40]},

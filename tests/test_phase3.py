@@ -7,6 +7,7 @@ import respx
 from src.claude_brain.copywriter import fallback_copy_from_caption
 from src.services.ad_creator import (
     DEFAULT_AGE_SPLITS_ORTHODOX,
+    DEFAULT_PATTERNS_PACKAGE_3122,
     AdCopy,
     AdCreator,
     AdCreatorError,
@@ -267,6 +268,66 @@ async def test_create_age_split_campaign_full_flow():
     assert '"ad_object_id"' in body
     # name на топ-уровне
     assert '"name"' in body
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_patterns_are_on_ad_group_level_not_banner():
+    """Regression: VK отвергает `patterns` внутри banner с ошибкой
+    `unknown_resource_field: Unknown fields: patterns`.
+
+    Patterns должны быть на уровне ad_group (campaigns[N] в payload ad_plan),
+    рядом с package_id — потому что patterns зависят именно от package_id.
+    """
+    import json
+
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    respx.get("https://ads.vk.com/api/v1/urls/").mock(
+        return_value=httpx.Response(
+            200,
+            json={"id": 12345, "url": "https://vk.com/test", "url_object_id": 67890},
+        )
+    )
+    respx.post(VK_CONTENT_STATIC_URL).mock(
+        return_value=httpx.Response(200, json={"id": 555, "variants": {}})
+    )
+    ad_plan_route = respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
+        return_value=httpx.Response(
+            200,
+            json={"id": 7000, "campaigns": [{"id": 7100, "banners": [{"id": 7110}]}]},
+        )
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    creator = AdCreator(client)
+    await creator.create_age_split_campaign(
+        image_bytes=b"img",
+        theme="t",
+        copy=AdCopy(title="T", text="T", about="T"),
+        community_url="https://vk.com/test",
+        age_splits=[(41, 42)],
+        daily_budget_rub_per_group=200,
+    )
+
+    body = json.loads(ad_plan_route.calls[0].request.read())
+    ad_group = body["campaigns"][0]
+    banner = ad_group["banners"][0]
+
+    # patterns должно быть на уровне ad_group и непустой
+    assert "patterns" in ad_group, "patterns должен быть на уровне ad_group"
+    assert isinstance(ad_group["patterns"], list) and len(ad_group["patterns"]) > 0
+    assert ad_group["patterns"] == DEFAULT_PATTERNS_PACKAGE_3122
+
+    # patterns НЕ должно быть в banner — иначе VK вернёт unknown_resource_field
+    assert "patterns" not in banner, (
+        "patterns не должно быть в banner — VK отвергает с unknown_resource_field"
+    )
 
 
 @pytest.mark.asyncio
