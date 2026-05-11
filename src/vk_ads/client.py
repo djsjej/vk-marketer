@@ -396,9 +396,9 @@ class VKAdsClient:
             "limit": min(limit, 100),
             "offset": offset,
             "fields": (
-                "id,ad_plan_id,name,status,targetings,banners,delivery,"
-                "budget_limit_day,budget_limit,package_id,patterns,"
-                "age_restrictions,max_price,date_start,date_end"
+                "id,ad_plan,ad_plan_id,name,status,targetings,banners,"
+                "delivery,budget_limit_day,budget_limit,age_restrictions,"
+                "autobidding_mode,date_start,date_end,created"
             ),
         }
         if ad_plan_id:
