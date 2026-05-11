@@ -1,0 +1,5241 @@
+{
+  "ad_plan": {
+    "ad_groups": [
+      {
+        "id": 137881410,
+        "name": "Группа 41-43",
+        "package_id": 3122
+      },
+      {
+        "id": 137893759,
+        "name": "Группа 44-46",
+        "package_id": 3122
+      },
+      {
+        "id": 137893760,
+        "name": "Группа 47-49",
+        "package_id": 3122
+      },
+      {
+        "id": 137893761,
+        "name": "Группа 50-52",
+        "package_id": 3122
+      },
+      {
+        "id": 137893762,
+        "name": "Группа 53-55",
+        "package_id": 3122
+      },
+      {
+        "id": 137893763,
+        "name": "Группа 56-58",
+        "package_id": 3122
+      }
+    ],
+    "ad_object_id": "124664310",
+    "ad_object_type": "url",
+    "autobidding_mode": "max_goals",
+    "budget_limit": null,
+    "budget_limit_day": 420.0,
+    "budget_optimization_enabled": true,
+    "campaigns": [
+      {
+        "id": 137881410,
+        "name": "Группа 41-43",
+        "package_id": 3122
+      },
+      {
+        "id": 137893759,
+        "name": "Группа 44-46",
+        "package_id": 3122
+      },
+      {
+        "id": 137893760,
+        "name": "Группа 47-49",
+        "package_id": 3122
+      },
+      {
+        "id": 137893761,
+        "name": "Группа 50-52",
+        "package_id": 3122
+      },
+      {
+        "id": 137893762,
+        "name": "Группа 53-55",
+        "package_id": 3122
+      },
+      {
+        "id": 137893763,
+        "name": "Группа 56-58",
+        "package_id": 3122
+      }
+    ],
+    "created": "2026-05-11 16:43:02",
+    "date_end": null,
+    "date_start": "2026-05-11",
+    "delivery": "delivering",
+    "efficiency_status": null,
+    "id": 20865519,
+    "name": "Кампания 2026-05-11",
+    "objective": "socialengagement",
+    "status": "active"
+  },
+  "ad_groups": [
+    {
+      "ad_plan": {
+        "id": 20865519,
+        "name": "Кампания 2026-05-11",
+        "status": "active"
+      },
+      "ad_plan_id": 20865519,
+      "age_restrictions": "0+",
+      "autobidding_mode": "max_goals",
+      "banners": [
+        {
+          "id": 218239297
+        }
+      ],
+      "budget_limit": null,
+      "budget_limit_day": 420.0,
+      "created": "2026-05-11 16:43:02",
+      "date_end": null,
+      "date_start": "2026-05-11",
+      "delivery": "delivering",
+      "id": 137881410,
+      "name": "Группа 41-43",
+      "status": "active",
+      "targetings": {
+        "age": {
+          "age_list": [
+            0,
+            41,
+            42,
+            43
+          ],
+          "expand": false
+        },
+        "fulltime": {
+          "flags": [
+            "cross_timezone",
+            "use_holidays_moving"
+          ],
+          "fri": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "mon": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sat": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sun": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "thu": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "tue": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "wed": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ]
+        },
+        "geo": {
+          "regions": [
+            188
+          ]
+        },
+        "group_members": "not_group_member",
+        "pads": [
+          1265106,
+          1302973
+        ],
+        "sex": [
+          "female"
+        ]
+      }
+    },
+    {
+      "ad_plan": {
+        "id": 20865519,
+        "name": "Кампания 2026-05-11",
+        "status": "active"
+      },
+      "ad_plan_id": 20865519,
+      "age_restrictions": "0+",
+      "autobidding_mode": "max_goals",
+      "banners": [
+        {
+          "id": 218253915
+        }
+      ],
+      "budget_limit": null,
+      "budget_limit_day": 420.0,
+      "created": "2026-05-11 19:29:32",
+      "date_end": null,
+      "date_start": "2026-05-11",
+      "delivery": "delivering",
+      "id": 137893759,
+      "name": "Группа 44-46",
+      "status": "active",
+      "targetings": {
+        "age": {
+          "age_list": [
+            0,
+            44,
+            45,
+            46
+          ],
+          "expand": false
+        },
+        "fulltime": {
+          "flags": [
+            "cross_timezone",
+            "use_holidays_moving"
+          ],
+          "fri": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "mon": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sat": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sun": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "thu": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "tue": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "wed": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ]
+        },
+        "geo": {
+          "regions": [
+            188
+          ]
+        },
+        "group_members": "not_group_member",
+        "pads": [
+          1265106,
+          1302973
+        ],
+        "sex": [
+          "female"
+        ]
+      }
+    },
+    {
+      "ad_plan": {
+        "id": 20865519,
+        "name": "Кампания 2026-05-11",
+        "status": "active"
+      },
+      "ad_plan_id": 20865519,
+      "age_restrictions": "0+",
+      "autobidding_mode": "max_goals",
+      "banners": [
+        {
+          "id": 218253916
+        }
+      ],
+      "budget_limit": null,
+      "budget_limit_day": 420.0,
+      "created": "2026-05-11 19:29:33",
+      "date_end": null,
+      "date_start": "2026-05-11",
+      "delivery": "delivering",
+      "id": 137893760,
+      "name": "Группа 47-49",
+      "status": "active",
+      "targetings": {
+        "age": {
+          "age_list": [
+            0,
+            47,
+            48,
+            49
+          ],
+          "expand": false
+        },
+        "fulltime": {
+          "flags": [
+            "cross_timezone",
+            "use_holidays_moving"
+          ],
+          "fri": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "mon": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sat": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sun": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "thu": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "tue": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "wed": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ]
+        },
+        "geo": {
+          "regions": [
+            188
+          ]
+        },
+        "group_members": "not_group_member",
+        "pads": [
+          1265106,
+          1302973
+        ],
+        "sex": [
+          "female"
+        ]
+      }
+    },
+    {
+      "ad_plan": {
+        "id": 20865519,
+        "name": "Кампания 2026-05-11",
+        "status": "active"
+      },
+      "ad_plan_id": 20865519,
+      "age_restrictions": "0+",
+      "autobidding_mode": "max_goals",
+      "banners": [
+        {
+          "id": 218253917
+        }
+      ],
+      "budget_limit": null,
+      "budget_limit_day": 420.0,
+      "created": "2026-05-11 19:29:33",
+      "date_end": null,
+      "date_start": "2026-05-11",
+      "delivery": "delivering",
+      "id": 137893761,
+      "name": "Группа 50-52",
+      "status": "active",
+      "targetings": {
+        "age": {
+          "age_list": [
+            0,
+            50,
+            51,
+            52
+          ],
+          "expand": false
+        },
+        "fulltime": {
+          "flags": [
+            "cross_timezone",
+            "use_holidays_moving"
+          ],
+          "fri": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "mon": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sat": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sun": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "thu": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "tue": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "wed": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ]
+        },
+        "geo": {
+          "regions": [
+            188
+          ]
+        },
+        "group_members": "not_group_member",
+        "pads": [
+          1265106,
+          1302973
+        ],
+        "sex": [
+          "female"
+        ]
+      }
+    },
+    {
+      "ad_plan": {
+        "id": 20865519,
+        "name": "Кампания 2026-05-11",
+        "status": "active"
+      },
+      "ad_plan_id": 20865519,
+      "age_restrictions": "0+",
+      "autobidding_mode": "max_goals",
+      "banners": [
+        {
+          "id": 218253918
+        }
+      ],
+      "budget_limit": null,
+      "budget_limit_day": 420.0,
+      "created": "2026-05-11 19:29:33",
+      "date_end": null,
+      "date_start": "2026-05-11",
+      "delivery": "delivering",
+      "id": 137893762,
+      "name": "Группа 53-55",
+      "status": "active",
+      "targetings": {
+        "age": {
+          "age_list": [
+            0,
+            53,
+            54,
+            55
+          ],
+          "expand": false
+        },
+        "fulltime": {
+          "flags": [
+            "cross_timezone",
+            "use_holidays_moving"
+          ],
+          "fri": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "mon": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sat": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sun": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "thu": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "tue": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "wed": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ]
+        },
+        "geo": {
+          "regions": [
+            188
+          ]
+        },
+        "group_members": "not_group_member",
+        "pads": [
+          1265106,
+          1302973
+        ],
+        "sex": [
+          "female"
+        ]
+      }
+    },
+    {
+      "ad_plan": {
+        "id": 20865519,
+        "name": "Кампания 2026-05-11",
+        "status": "active"
+      },
+      "ad_plan_id": 20865519,
+      "age_restrictions": "0+",
+      "autobidding_mode": "max_goals",
+      "banners": [
+        {
+          "id": 218253919
+        }
+      ],
+      "budget_limit": null,
+      "budget_limit_day": 420.0,
+      "created": "2026-05-11 19:29:34",
+      "date_end": null,
+      "date_start": "2026-05-11",
+      "delivery": "delivering",
+      "id": 137893763,
+      "name": "Группа 56-58",
+      "status": "active",
+      "targetings": {
+        "age": {
+          "age_list": [
+            0,
+            56,
+            57,
+            58
+          ],
+          "expand": false
+        },
+        "fulltime": {
+          "flags": [
+            "cross_timezone",
+            "use_holidays_moving"
+          ],
+          "fri": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "mon": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sat": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "sun": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "thu": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "tue": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ],
+          "wed": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23
+          ]
+        },
+        "geo": {
+          "regions": [
+            188
+          ]
+        },
+        "group_members": "not_group_member",
+        "pads": [
+          1265106,
+          1302973
+        ],
+        "sex": [
+          "female"
+        ]
+      }
+    }
+  ],
+  "banners": [
+    {
+      "ad_group_id": 137881410,
+      "banners": [
+        {
+          "ad_group_id": 137881410,
+          "ad_plan_id": 20865519,
+          "blocked_patterns": [],
+          "call_to_action": null,
+          "campaign_id": 137881410,
+          "category": "",
+          "content": {
+            "icon_256x256": {
+              "flags": [],
+              "id": 116100816,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "100x100": {
+                  "height": 100,
+                  "media_type": "image",
+                  "size": 14105,
+                  "url": "https://r.mradx.net/imgs/a8/ac/050af43e67537b1f.jpg",
+                  "width": 100
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "50x50": {
+                  "height": 50,
+                  "media_type": "image",
+                  "size": 5053,
+                  "url": "https://r.mradx.net/imgs/80/7c/3816b4ca644a4970.jpg",
+                  "width": 50
+                },
+                "original": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "uploaded": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/oimg/4b/4e/81b068bc2e99.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "image_4_5": {
+              "flags": [
+                "autogen_upscale"
+              ],
+              "id": 116102020,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "1080x1350": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "256x320": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 129901,
+                  "url": "https://r.mradx.net/imgs/22/9d/654eb35386c538bd.png",
+                  "width": 256
+                },
+                "540x675": {
+                  "height": 675,
+                  "media_type": "image",
+                  "size": 483883,
+                  "url": "https://r.mradx.net/imgs/f0/e7/28df4dcb9a700593.png",
+                  "width": 540
+                },
+                "640x800": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 642519,
+                  "url": "https://r.mradx.net/imgs/d2/b6/53c967373bbd68d8.png",
+                  "width": 640
+                },
+                "852x1065": {
+                  "height": 1065,
+                  "media_type": "image",
+                  "size": 1023294,
+                  "url": "https://r.mradx.net/imgs/fb/59/059d2a320e327420.png",
+                  "width": 852
+                },
+                "original": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "uploaded": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/oimg/43/a7/bf008a1eae12.png",
+                  "width": 1080
+                }
+              }
+            },
+            "image_600x600": {
+              "flags": [
+                "autogen_smartcrop"
+              ],
+              "id": 116102014,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "240x240": {
+                  "height": 240,
+                  "media_type": "image",
+                  "size": 97711,
+                  "url": "https://r.mradx.net/imgs/80/95/28447c51a13f3f05.png",
+                  "width": 240
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 110282,
+                  "url": "https://r.mradx.net/imgs/4e/44/3660f78d48aad753.png",
+                  "width": 256
+                },
+                "300x300": {
+                  "height": 300,
+                  "media_type": "image",
+                  "size": 149053,
+                  "url": "https://r.mradx.net/imgs/64/54/3ac9e955650dd5dc.png",
+                  "width": 300
+                },
+                "480x480": {
+                  "height": 480,
+                  "media_type": "image",
+                  "size": 368409,
+                  "url": "https://r.mradx.net/imgs/09/79/a1c055219b420906.png",
+                  "width": 480
+                },
+                "600x600": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "90x90": {
+                  "height": 90,
+                  "media_type": "image",
+                  "size": 15980,
+                  "url": "https://r.mradx.net/imgs/24/4e/328b945b0cc77e77.png",
+                  "width": 90
+                },
+                "original": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "uploaded": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/oimg/8d/1f/bcc029c7793f.png",
+                  "width": 600
+                }
+              }
+            },
+            "video_landscape_300s": {
+              "flags": [
+                "autogen_video"
+              ],
+              "id": 116102202,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "1280x720x1120": {
+                  "bitrate": 644.93,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 485976,
+                  "url": "https://r.mradx.net/vrs/ee/28/8e8c195f7aef36609365.mp4",
+                  "width": 1280
+                },
+                "1280x720x1120-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1120-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600": {
+                  "bitrate": 669.098,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 504102,
+                  "url": "https://r.mradx.net/vrs/bc/46/acfe03ef14499f012fe7.mp4",
+                  "width": 1280
+                },
+                "1280x720x1600-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1920x1080x3000": {
+                  "bitrate": 1354.621,
+                  "float_length": 6.0,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 1018245,
+                  "url": "https://r.mradx.net/vrs/00/ed/b76e7346a91d78173c6b.mp4",
+                  "width": 1920
+                },
+                "1920x1080x3000-first_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 45169,
+                  "url": "https://r.mradx.net/imgs/3e/55/13876bbbc23ca4a2.jpg",
+                  "width": 1920
+                },
+                "1920x1080x3000-last_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 83753,
+                  "url": "https://r.mradx.net/imgs/17/bf/983c795a1d729c9a.jpg",
+                  "width": 1920
+                },
+                "256x144x300": {
+                  "bitrate": 63.118,
+                  "float_length": 6.0,
+                  "height": 144,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 49616,
+                  "url": "https://r.mradx.net/vrs/b4/3d/eefa95420b1fda2b1375.mp4",
+                  "width": 256
+                },
+                "256x144x300-first_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 3436,
+                  "url": "https://r.mradx.net/imgs/d6/f2/081f914121d9cf1d.jpg",
+                  "width": 256
+                },
+                "256x144x300-last_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 7133,
+                  "url": "https://r.mradx.net/imgs/03/d1/a6bcc99096bcae18.jpg",
+                  "width": 256
+                },
+                "640x360x560": {
+                  "bitrate": 232.917,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 176968,
+                  "url": "https://r.mradx.net/vrs/9c/34/be661246389a87b2501d.mp4",
+                  "width": 640
+                },
+                "640x360x560-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x560-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "640x360x800": {
+                  "bitrate": 233.494,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 177401,
+                  "url": "https://r.mradx.net/vrs/57/99/fb0c6ba172eb43b32193.mp4",
+                  "width": 640
+                },
+                "640x360x800-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x800-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "internal": {
+                  "bitrate": 946.033,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 714514,
+                  "url": "https://tmp.mradx.net/s3_storage/video/42/cd/6e7ac45ddb.mp4",
+                  "width": 1920
+                },
+                "master-hls": {
+                  "bitrate": 0.476,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 362,
+                  "url": "https://r.mradx.net/hlss/42/cd/6e7ac45ddb/v3/master.m3u8",
+                  "width": 1920
+                }
+              }
+            },
+            "video_portrait_4_5_180s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "video_portrait_4_5_30s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            }
+          },
+          "content_settings": {},
+          "created": "2026-05-11 16:43:02",
+          "deeplink": null,
+          "delivery": "delivering",
+          "id": 218239297,
+          "moderation_reasons": [],
+          "moderation_status": "allowed",
+          "name": "Объявление 2026-05-11",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "ad_group_id": 137893759,
+      "banners": [
+        {
+          "ad_group_id": 137893759,
+          "ad_plan_id": 20865519,
+          "blocked_patterns": [],
+          "call_to_action": null,
+          "campaign_id": 137893759,
+          "category": "",
+          "content": {
+            "icon_256x256": {
+              "flags": [],
+              "id": 116100816,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "100x100": {
+                  "height": 100,
+                  "media_type": "image",
+                  "size": 14105,
+                  "url": "https://r.mradx.net/imgs/a8/ac/050af43e67537b1f.jpg",
+                  "width": 100
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "50x50": {
+                  "height": 50,
+                  "media_type": "image",
+                  "size": 5053,
+                  "url": "https://r.mradx.net/imgs/80/7c/3816b4ca644a4970.jpg",
+                  "width": 50
+                },
+                "original": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "uploaded": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/oimg/4b/4e/81b068bc2e99.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "image_4_5": {
+              "flags": [
+                "autogen_upscale"
+              ],
+              "id": 116102020,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "1080x1350": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "256x320": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 129901,
+                  "url": "https://r.mradx.net/imgs/22/9d/654eb35386c538bd.png",
+                  "width": 256
+                },
+                "540x675": {
+                  "height": 675,
+                  "media_type": "image",
+                  "size": 483883,
+                  "url": "https://r.mradx.net/imgs/f0/e7/28df4dcb9a700593.png",
+                  "width": 540
+                },
+                "640x800": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 642519,
+                  "url": "https://r.mradx.net/imgs/d2/b6/53c967373bbd68d8.png",
+                  "width": 640
+                },
+                "852x1065": {
+                  "height": 1065,
+                  "media_type": "image",
+                  "size": 1023294,
+                  "url": "https://r.mradx.net/imgs/fb/59/059d2a320e327420.png",
+                  "width": 852
+                },
+                "original": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "uploaded": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/oimg/43/a7/bf008a1eae12.png",
+                  "width": 1080
+                }
+              }
+            },
+            "image_600x600": {
+              "flags": [
+                "autogen_smartcrop"
+              ],
+              "id": 116102014,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "240x240": {
+                  "height": 240,
+                  "media_type": "image",
+                  "size": 97711,
+                  "url": "https://r.mradx.net/imgs/80/95/28447c51a13f3f05.png",
+                  "width": 240
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 110282,
+                  "url": "https://r.mradx.net/imgs/4e/44/3660f78d48aad753.png",
+                  "width": 256
+                },
+                "300x300": {
+                  "height": 300,
+                  "media_type": "image",
+                  "size": 149053,
+                  "url": "https://r.mradx.net/imgs/64/54/3ac9e955650dd5dc.png",
+                  "width": 300
+                },
+                "480x480": {
+                  "height": 480,
+                  "media_type": "image",
+                  "size": 368409,
+                  "url": "https://r.mradx.net/imgs/09/79/a1c055219b420906.png",
+                  "width": 480
+                },
+                "600x600": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "90x90": {
+                  "height": 90,
+                  "media_type": "image",
+                  "size": 15980,
+                  "url": "https://r.mradx.net/imgs/24/4e/328b945b0cc77e77.png",
+                  "width": 90
+                },
+                "original": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "uploaded": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/oimg/8d/1f/bcc029c7793f.png",
+                  "width": 600
+                }
+              }
+            },
+            "video_landscape_300s": {
+              "flags": [
+                "autogen_video"
+              ],
+              "id": 116102202,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "1280x720x1120": {
+                  "bitrate": 644.93,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 485976,
+                  "url": "https://r.mradx.net/vrs/ee/28/8e8c195f7aef36609365.mp4",
+                  "width": 1280
+                },
+                "1280x720x1120-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1120-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600": {
+                  "bitrate": 669.098,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 504102,
+                  "url": "https://r.mradx.net/vrs/bc/46/acfe03ef14499f012fe7.mp4",
+                  "width": 1280
+                },
+                "1280x720x1600-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1920x1080x3000": {
+                  "bitrate": 1354.621,
+                  "float_length": 6.0,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 1018245,
+                  "url": "https://r.mradx.net/vrs/00/ed/b76e7346a91d78173c6b.mp4",
+                  "width": 1920
+                },
+                "1920x1080x3000-first_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 45169,
+                  "url": "https://r.mradx.net/imgs/3e/55/13876bbbc23ca4a2.jpg",
+                  "width": 1920
+                },
+                "1920x1080x3000-last_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 83753,
+                  "url": "https://r.mradx.net/imgs/17/bf/983c795a1d729c9a.jpg",
+                  "width": 1920
+                },
+                "256x144x300": {
+                  "bitrate": 63.118,
+                  "float_length": 6.0,
+                  "height": 144,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 49616,
+                  "url": "https://r.mradx.net/vrs/b4/3d/eefa95420b1fda2b1375.mp4",
+                  "width": 256
+                },
+                "256x144x300-first_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 3436,
+                  "url": "https://r.mradx.net/imgs/d6/f2/081f914121d9cf1d.jpg",
+                  "width": 256
+                },
+                "256x144x300-last_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 7133,
+                  "url": "https://r.mradx.net/imgs/03/d1/a6bcc99096bcae18.jpg",
+                  "width": 256
+                },
+                "640x360x560": {
+                  "bitrate": 232.917,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 176968,
+                  "url": "https://r.mradx.net/vrs/9c/34/be661246389a87b2501d.mp4",
+                  "width": 640
+                },
+                "640x360x560-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x560-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "640x360x800": {
+                  "bitrate": 233.494,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 177401,
+                  "url": "https://r.mradx.net/vrs/57/99/fb0c6ba172eb43b32193.mp4",
+                  "width": 640
+                },
+                "640x360x800-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x800-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "internal": {
+                  "bitrate": 946.033,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 714514,
+                  "url": "https://tmp.mradx.net/s3_storage/video/42/cd/6e7ac45ddb.mp4",
+                  "width": 1920
+                },
+                "master-hls": {
+                  "bitrate": 0.476,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 362,
+                  "url": "https://r.mradx.net/hlss/42/cd/6e7ac45ddb/v3/master.m3u8",
+                  "width": 1920
+                }
+              }
+            },
+            "video_portrait_4_5_180s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "video_portrait_4_5_30s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            }
+          },
+          "content_settings": {},
+          "created": "2026-05-11 19:29:32",
+          "deeplink": null,
+          "delivery": "delivering",
+          "id": 218253915,
+          "moderation_reasons": [],
+          "moderation_status": "allowed",
+          "name": "Копия Объявление 2026-05-11",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "ad_group_id": 137893760,
+      "banners": [
+        {
+          "ad_group_id": 137893760,
+          "ad_plan_id": 20865519,
+          "blocked_patterns": [],
+          "call_to_action": null,
+          "campaign_id": 137893760,
+          "category": "",
+          "content": {
+            "icon_256x256": {
+              "flags": [],
+              "id": 116100816,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "100x100": {
+                  "height": 100,
+                  "media_type": "image",
+                  "size": 14105,
+                  "url": "https://r.mradx.net/imgs/a8/ac/050af43e67537b1f.jpg",
+                  "width": 100
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "50x50": {
+                  "height": 50,
+                  "media_type": "image",
+                  "size": 5053,
+                  "url": "https://r.mradx.net/imgs/80/7c/3816b4ca644a4970.jpg",
+                  "width": 50
+                },
+                "original": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "uploaded": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/oimg/4b/4e/81b068bc2e99.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "image_4_5": {
+              "flags": [
+                "autogen_upscale"
+              ],
+              "id": 116102020,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "1080x1350": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "256x320": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 129901,
+                  "url": "https://r.mradx.net/imgs/22/9d/654eb35386c538bd.png",
+                  "width": 256
+                },
+                "540x675": {
+                  "height": 675,
+                  "media_type": "image",
+                  "size": 483883,
+                  "url": "https://r.mradx.net/imgs/f0/e7/28df4dcb9a700593.png",
+                  "width": 540
+                },
+                "640x800": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 642519,
+                  "url": "https://r.mradx.net/imgs/d2/b6/53c967373bbd68d8.png",
+                  "width": 640
+                },
+                "852x1065": {
+                  "height": 1065,
+                  "media_type": "image",
+                  "size": 1023294,
+                  "url": "https://r.mradx.net/imgs/fb/59/059d2a320e327420.png",
+                  "width": 852
+                },
+                "original": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "uploaded": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/oimg/43/a7/bf008a1eae12.png",
+                  "width": 1080
+                }
+              }
+            },
+            "image_600x600": {
+              "flags": [
+                "autogen_smartcrop"
+              ],
+              "id": 116102014,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "240x240": {
+                  "height": 240,
+                  "media_type": "image",
+                  "size": 97711,
+                  "url": "https://r.mradx.net/imgs/80/95/28447c51a13f3f05.png",
+                  "width": 240
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 110282,
+                  "url": "https://r.mradx.net/imgs/4e/44/3660f78d48aad753.png",
+                  "width": 256
+                },
+                "300x300": {
+                  "height": 300,
+                  "media_type": "image",
+                  "size": 149053,
+                  "url": "https://r.mradx.net/imgs/64/54/3ac9e955650dd5dc.png",
+                  "width": 300
+                },
+                "480x480": {
+                  "height": 480,
+                  "media_type": "image",
+                  "size": 368409,
+                  "url": "https://r.mradx.net/imgs/09/79/a1c055219b420906.png",
+                  "width": 480
+                },
+                "600x600": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "90x90": {
+                  "height": 90,
+                  "media_type": "image",
+                  "size": 15980,
+                  "url": "https://r.mradx.net/imgs/24/4e/328b945b0cc77e77.png",
+                  "width": 90
+                },
+                "original": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "uploaded": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/oimg/8d/1f/bcc029c7793f.png",
+                  "width": 600
+                }
+              }
+            },
+            "video_landscape_300s": {
+              "flags": [
+                "autogen_video"
+              ],
+              "id": 116102202,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "1280x720x1120": {
+                  "bitrate": 644.93,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 485976,
+                  "url": "https://r.mradx.net/vrs/ee/28/8e8c195f7aef36609365.mp4",
+                  "width": 1280
+                },
+                "1280x720x1120-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1120-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600": {
+                  "bitrate": 669.098,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 504102,
+                  "url": "https://r.mradx.net/vrs/bc/46/acfe03ef14499f012fe7.mp4",
+                  "width": 1280
+                },
+                "1280x720x1600-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1920x1080x3000": {
+                  "bitrate": 1354.621,
+                  "float_length": 6.0,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 1018245,
+                  "url": "https://r.mradx.net/vrs/00/ed/b76e7346a91d78173c6b.mp4",
+                  "width": 1920
+                },
+                "1920x1080x3000-first_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 45169,
+                  "url": "https://r.mradx.net/imgs/3e/55/13876bbbc23ca4a2.jpg",
+                  "width": 1920
+                },
+                "1920x1080x3000-last_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 83753,
+                  "url": "https://r.mradx.net/imgs/17/bf/983c795a1d729c9a.jpg",
+                  "width": 1920
+                },
+                "256x144x300": {
+                  "bitrate": 63.118,
+                  "float_length": 6.0,
+                  "height": 144,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 49616,
+                  "url": "https://r.mradx.net/vrs/b4/3d/eefa95420b1fda2b1375.mp4",
+                  "width": 256
+                },
+                "256x144x300-first_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 3436,
+                  "url": "https://r.mradx.net/imgs/d6/f2/081f914121d9cf1d.jpg",
+                  "width": 256
+                },
+                "256x144x300-last_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 7133,
+                  "url": "https://r.mradx.net/imgs/03/d1/a6bcc99096bcae18.jpg",
+                  "width": 256
+                },
+                "640x360x560": {
+                  "bitrate": 232.917,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 176968,
+                  "url": "https://r.mradx.net/vrs/9c/34/be661246389a87b2501d.mp4",
+                  "width": 640
+                },
+                "640x360x560-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x560-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "640x360x800": {
+                  "bitrate": 233.494,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 177401,
+                  "url": "https://r.mradx.net/vrs/57/99/fb0c6ba172eb43b32193.mp4",
+                  "width": 640
+                },
+                "640x360x800-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x800-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "internal": {
+                  "bitrate": 946.033,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 714514,
+                  "url": "https://tmp.mradx.net/s3_storage/video/42/cd/6e7ac45ddb.mp4",
+                  "width": 1920
+                },
+                "master-hls": {
+                  "bitrate": 0.476,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 362,
+                  "url": "https://r.mradx.net/hlss/42/cd/6e7ac45ddb/v3/master.m3u8",
+                  "width": 1920
+                }
+              }
+            },
+            "video_portrait_4_5_180s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "video_portrait_4_5_30s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            }
+          },
+          "content_settings": {},
+          "created": "2026-05-11 19:29:33",
+          "deeplink": null,
+          "delivery": "delivering",
+          "id": 218253916,
+          "moderation_reasons": [],
+          "moderation_status": "allowed",
+          "name": "Копия_1 Копия Объявление 2026-05-11",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "ad_group_id": 137893761,
+      "banners": [
+        {
+          "ad_group_id": 137893761,
+          "ad_plan_id": 20865519,
+          "blocked_patterns": [],
+          "call_to_action": null,
+          "campaign_id": 137893761,
+          "category": "",
+          "content": {
+            "icon_256x256": {
+              "flags": [],
+              "id": 116100816,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "100x100": {
+                  "height": 100,
+                  "media_type": "image",
+                  "size": 14105,
+                  "url": "https://r.mradx.net/imgs/a8/ac/050af43e67537b1f.jpg",
+                  "width": 100
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "50x50": {
+                  "height": 50,
+                  "media_type": "image",
+                  "size": 5053,
+                  "url": "https://r.mradx.net/imgs/80/7c/3816b4ca644a4970.jpg",
+                  "width": 50
+                },
+                "original": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "uploaded": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/oimg/4b/4e/81b068bc2e99.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "image_4_5": {
+              "flags": [
+                "autogen_upscale"
+              ],
+              "id": 116102020,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "1080x1350": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "256x320": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 129901,
+                  "url": "https://r.mradx.net/imgs/22/9d/654eb35386c538bd.png",
+                  "width": 256
+                },
+                "540x675": {
+                  "height": 675,
+                  "media_type": "image",
+                  "size": 483883,
+                  "url": "https://r.mradx.net/imgs/f0/e7/28df4dcb9a700593.png",
+                  "width": 540
+                },
+                "640x800": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 642519,
+                  "url": "https://r.mradx.net/imgs/d2/b6/53c967373bbd68d8.png",
+                  "width": 640
+                },
+                "852x1065": {
+                  "height": 1065,
+                  "media_type": "image",
+                  "size": 1023294,
+                  "url": "https://r.mradx.net/imgs/fb/59/059d2a320e327420.png",
+                  "width": 852
+                },
+                "original": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "uploaded": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/oimg/43/a7/bf008a1eae12.png",
+                  "width": 1080
+                }
+              }
+            },
+            "image_600x600": {
+              "flags": [
+                "autogen_smartcrop"
+              ],
+              "id": 116102014,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "240x240": {
+                  "height": 240,
+                  "media_type": "image",
+                  "size": 97711,
+                  "url": "https://r.mradx.net/imgs/80/95/28447c51a13f3f05.png",
+                  "width": 240
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 110282,
+                  "url": "https://r.mradx.net/imgs/4e/44/3660f78d48aad753.png",
+                  "width": 256
+                },
+                "300x300": {
+                  "height": 300,
+                  "media_type": "image",
+                  "size": 149053,
+                  "url": "https://r.mradx.net/imgs/64/54/3ac9e955650dd5dc.png",
+                  "width": 300
+                },
+                "480x480": {
+                  "height": 480,
+                  "media_type": "image",
+                  "size": 368409,
+                  "url": "https://r.mradx.net/imgs/09/79/a1c055219b420906.png",
+                  "width": 480
+                },
+                "600x600": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "90x90": {
+                  "height": 90,
+                  "media_type": "image",
+                  "size": 15980,
+                  "url": "https://r.mradx.net/imgs/24/4e/328b945b0cc77e77.png",
+                  "width": 90
+                },
+                "original": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "uploaded": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/oimg/8d/1f/bcc029c7793f.png",
+                  "width": 600
+                }
+              }
+            },
+            "video_landscape_300s": {
+              "flags": [
+                "autogen_video"
+              ],
+              "id": 116102202,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "1280x720x1120": {
+                  "bitrate": 644.93,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 485976,
+                  "url": "https://r.mradx.net/vrs/ee/28/8e8c195f7aef36609365.mp4",
+                  "width": 1280
+                },
+                "1280x720x1120-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1120-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600": {
+                  "bitrate": 669.098,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 504102,
+                  "url": "https://r.mradx.net/vrs/bc/46/acfe03ef14499f012fe7.mp4",
+                  "width": 1280
+                },
+                "1280x720x1600-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1920x1080x3000": {
+                  "bitrate": 1354.621,
+                  "float_length": 6.0,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 1018245,
+                  "url": "https://r.mradx.net/vrs/00/ed/b76e7346a91d78173c6b.mp4",
+                  "width": 1920
+                },
+                "1920x1080x3000-first_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 45169,
+                  "url": "https://r.mradx.net/imgs/3e/55/13876bbbc23ca4a2.jpg",
+                  "width": 1920
+                },
+                "1920x1080x3000-last_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 83753,
+                  "url": "https://r.mradx.net/imgs/17/bf/983c795a1d729c9a.jpg",
+                  "width": 1920
+                },
+                "256x144x300": {
+                  "bitrate": 63.118,
+                  "float_length": 6.0,
+                  "height": 144,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 49616,
+                  "url": "https://r.mradx.net/vrs/b4/3d/eefa95420b1fda2b1375.mp4",
+                  "width": 256
+                },
+                "256x144x300-first_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 3436,
+                  "url": "https://r.mradx.net/imgs/d6/f2/081f914121d9cf1d.jpg",
+                  "width": 256
+                },
+                "256x144x300-last_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 7133,
+                  "url": "https://r.mradx.net/imgs/03/d1/a6bcc99096bcae18.jpg",
+                  "width": 256
+                },
+                "640x360x560": {
+                  "bitrate": 232.917,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 176968,
+                  "url": "https://r.mradx.net/vrs/9c/34/be661246389a87b2501d.mp4",
+                  "width": 640
+                },
+                "640x360x560-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x560-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "640x360x800": {
+                  "bitrate": 233.494,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 177401,
+                  "url": "https://r.mradx.net/vrs/57/99/fb0c6ba172eb43b32193.mp4",
+                  "width": 640
+                },
+                "640x360x800-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x800-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "internal": {
+                  "bitrate": 946.033,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 714514,
+                  "url": "https://tmp.mradx.net/s3_storage/video/42/cd/6e7ac45ddb.mp4",
+                  "width": 1920
+                },
+                "master-hls": {
+                  "bitrate": 0.476,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 362,
+                  "url": "https://r.mradx.net/hlss/42/cd/6e7ac45ddb/v3/master.m3u8",
+                  "width": 1920
+                }
+              }
+            },
+            "video_portrait_4_5_180s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "video_portrait_4_5_30s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            }
+          },
+          "content_settings": {},
+          "created": "2026-05-11 19:29:33",
+          "deeplink": null,
+          "delivery": "delivering",
+          "id": 218253917,
+          "moderation_reasons": [],
+          "moderation_status": "allowed",
+          "name": "Копия_2 Копия Объявление 2026-05-11",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "ad_group_id": 137893762,
+      "banners": [
+        {
+          "ad_group_id": 137893762,
+          "ad_plan_id": 20865519,
+          "blocked_patterns": [],
+          "call_to_action": null,
+          "campaign_id": 137893762,
+          "category": "",
+          "content": {
+            "icon_256x256": {
+              "flags": [],
+              "id": 116100816,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "100x100": {
+                  "height": 100,
+                  "media_type": "image",
+                  "size": 14105,
+                  "url": "https://r.mradx.net/imgs/a8/ac/050af43e67537b1f.jpg",
+                  "width": 100
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "50x50": {
+                  "height": 50,
+                  "media_type": "image",
+                  "size": 5053,
+                  "url": "https://r.mradx.net/imgs/80/7c/3816b4ca644a4970.jpg",
+                  "width": 50
+                },
+                "original": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "uploaded": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/oimg/4b/4e/81b068bc2e99.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "image_4_5": {
+              "flags": [
+                "autogen_upscale"
+              ],
+              "id": 116102020,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "1080x1350": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "256x320": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 129901,
+                  "url": "https://r.mradx.net/imgs/22/9d/654eb35386c538bd.png",
+                  "width": 256
+                },
+                "540x675": {
+                  "height": 675,
+                  "media_type": "image",
+                  "size": 483883,
+                  "url": "https://r.mradx.net/imgs/f0/e7/28df4dcb9a700593.png",
+                  "width": 540
+                },
+                "640x800": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 642519,
+                  "url": "https://r.mradx.net/imgs/d2/b6/53c967373bbd68d8.png",
+                  "width": 640
+                },
+                "852x1065": {
+                  "height": 1065,
+                  "media_type": "image",
+                  "size": 1023294,
+                  "url": "https://r.mradx.net/imgs/fb/59/059d2a320e327420.png",
+                  "width": 852
+                },
+                "original": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "uploaded": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/oimg/43/a7/bf008a1eae12.png",
+                  "width": 1080
+                }
+              }
+            },
+            "image_600x600": {
+              "flags": [
+                "autogen_smartcrop"
+              ],
+              "id": 116102014,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "240x240": {
+                  "height": 240,
+                  "media_type": "image",
+                  "size": 97711,
+                  "url": "https://r.mradx.net/imgs/80/95/28447c51a13f3f05.png",
+                  "width": 240
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 110282,
+                  "url": "https://r.mradx.net/imgs/4e/44/3660f78d48aad753.png",
+                  "width": 256
+                },
+                "300x300": {
+                  "height": 300,
+                  "media_type": "image",
+                  "size": 149053,
+                  "url": "https://r.mradx.net/imgs/64/54/3ac9e955650dd5dc.png",
+                  "width": 300
+                },
+                "480x480": {
+                  "height": 480,
+                  "media_type": "image",
+                  "size": 368409,
+                  "url": "https://r.mradx.net/imgs/09/79/a1c055219b420906.png",
+                  "width": 480
+                },
+                "600x600": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "90x90": {
+                  "height": 90,
+                  "media_type": "image",
+                  "size": 15980,
+                  "url": "https://r.mradx.net/imgs/24/4e/328b945b0cc77e77.png",
+                  "width": 90
+                },
+                "original": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "uploaded": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/oimg/8d/1f/bcc029c7793f.png",
+                  "width": 600
+                }
+              }
+            },
+            "video_landscape_300s": {
+              "flags": [
+                "autogen_video"
+              ],
+              "id": 116102202,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "1280x720x1120": {
+                  "bitrate": 644.93,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 485976,
+                  "url": "https://r.mradx.net/vrs/ee/28/8e8c195f7aef36609365.mp4",
+                  "width": 1280
+                },
+                "1280x720x1120-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1120-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600": {
+                  "bitrate": 669.098,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 504102,
+                  "url": "https://r.mradx.net/vrs/bc/46/acfe03ef14499f012fe7.mp4",
+                  "width": 1280
+                },
+                "1280x720x1600-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1920x1080x3000": {
+                  "bitrate": 1354.621,
+                  "float_length": 6.0,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 1018245,
+                  "url": "https://r.mradx.net/vrs/00/ed/b76e7346a91d78173c6b.mp4",
+                  "width": 1920
+                },
+                "1920x1080x3000-first_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 45169,
+                  "url": "https://r.mradx.net/imgs/3e/55/13876bbbc23ca4a2.jpg",
+                  "width": 1920
+                },
+                "1920x1080x3000-last_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 83753,
+                  "url": "https://r.mradx.net/imgs/17/bf/983c795a1d729c9a.jpg",
+                  "width": 1920
+                },
+                "256x144x300": {
+                  "bitrate": 63.118,
+                  "float_length": 6.0,
+                  "height": 144,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 49616,
+                  "url": "https://r.mradx.net/vrs/b4/3d/eefa95420b1fda2b1375.mp4",
+                  "width": 256
+                },
+                "256x144x300-first_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 3436,
+                  "url": "https://r.mradx.net/imgs/d6/f2/081f914121d9cf1d.jpg",
+                  "width": 256
+                },
+                "256x144x300-last_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 7133,
+                  "url": "https://r.mradx.net/imgs/03/d1/a6bcc99096bcae18.jpg",
+                  "width": 256
+                },
+                "640x360x560": {
+                  "bitrate": 232.917,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 176968,
+                  "url": "https://r.mradx.net/vrs/9c/34/be661246389a87b2501d.mp4",
+                  "width": 640
+                },
+                "640x360x560-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x560-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "640x360x800": {
+                  "bitrate": 233.494,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 177401,
+                  "url": "https://r.mradx.net/vrs/57/99/fb0c6ba172eb43b32193.mp4",
+                  "width": 640
+                },
+                "640x360x800-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x800-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "internal": {
+                  "bitrate": 946.033,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 714514,
+                  "url": "https://tmp.mradx.net/s3_storage/video/42/cd/6e7ac45ddb.mp4",
+                  "width": 1920
+                },
+                "master-hls": {
+                  "bitrate": 0.476,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 362,
+                  "url": "https://r.mradx.net/hlss/42/cd/6e7ac45ddb/v3/master.m3u8",
+                  "width": 1920
+                }
+              }
+            },
+            "video_portrait_4_5_180s": {
+              "flags": [
+                "autogen_video_portrait",
+                "autogen_video"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "video_portrait_4_5_30s": {
+              "flags": [
+                "autogen_video_portrait",
+                "autogen_video"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            }
+          },
+          "content_settings": {},
+          "created": "2026-05-11 19:29:33",
+          "deeplink": null,
+          "delivery": "delivering",
+          "id": 218253918,
+          "moderation_reasons": [],
+          "moderation_status": "allowed",
+          "name": "Копия_3 Копия Объявление 2026-05-11",
+          "status": "active"
+        }
+      ]
+    },
+    {
+      "ad_group_id": 137893763,
+      "banners": [
+        {
+          "ad_group_id": 137893763,
+          "ad_plan_id": 20865519,
+          "blocked_patterns": [],
+          "call_to_action": null,
+          "campaign_id": 137893763,
+          "category": "",
+          "content": {
+            "icon_256x256": {
+              "flags": [],
+              "id": 116100816,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "100x100": {
+                  "height": 100,
+                  "media_type": "image",
+                  "size": 14105,
+                  "url": "https://r.mradx.net/imgs/a8/ac/050af43e67537b1f.jpg",
+                  "width": 100
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "50x50": {
+                  "height": 50,
+                  "media_type": "image",
+                  "size": 5053,
+                  "url": "https://r.mradx.net/imgs/80/7c/3816b4ca644a4970.jpg",
+                  "width": 50
+                },
+                "original": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/imgs/4b/4e/81b068bc2e99c8c5.jpg",
+                  "width": 256
+                },
+                "uploaded": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 31251,
+                  "url": "https://r.mradx.net/oimg/4b/4e/81b068bc2e99.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "image_4_5": {
+              "flags": [
+                "autogen_upscale"
+              ],
+              "id": 116102020,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "1080x1350": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "256x320": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 129901,
+                  "url": "https://r.mradx.net/imgs/22/9d/654eb35386c538bd.png",
+                  "width": 256
+                },
+                "540x675": {
+                  "height": 675,
+                  "media_type": "image",
+                  "size": 483883,
+                  "url": "https://r.mradx.net/imgs/f0/e7/28df4dcb9a700593.png",
+                  "width": 540
+                },
+                "640x800": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 642519,
+                  "url": "https://r.mradx.net/imgs/d2/b6/53c967373bbd68d8.png",
+                  "width": 640
+                },
+                "852x1065": {
+                  "height": 1065,
+                  "media_type": "image",
+                  "size": 1023294,
+                  "url": "https://r.mradx.net/imgs/fb/59/059d2a320e327420.png",
+                  "width": 852
+                },
+                "original": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/imgs/43/a7/bf008a1eae12befb.png",
+                  "width": 1080
+                },
+                "uploaded": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 1688032,
+                  "url": "https://r.mradx.net/oimg/43/a7/bf008a1eae12.png",
+                  "width": 1080
+                }
+              }
+            },
+            "image_600x600": {
+              "flags": [
+                "autogen_smartcrop"
+              ],
+              "id": 116102014,
+              "text_percent": 0,
+              "type": "static",
+              "variants": {
+                "240x240": {
+                  "height": 240,
+                  "media_type": "image",
+                  "size": 97711,
+                  "url": "https://r.mradx.net/imgs/80/95/28447c51a13f3f05.png",
+                  "width": 240
+                },
+                "256x256": {
+                  "height": 256,
+                  "media_type": "image",
+                  "size": 110282,
+                  "url": "https://r.mradx.net/imgs/4e/44/3660f78d48aad753.png",
+                  "width": 256
+                },
+                "300x300": {
+                  "height": 300,
+                  "media_type": "image",
+                  "size": 149053,
+                  "url": "https://r.mradx.net/imgs/64/54/3ac9e955650dd5dc.png",
+                  "width": 300
+                },
+                "480x480": {
+                  "height": 480,
+                  "media_type": "image",
+                  "size": 368409,
+                  "url": "https://r.mradx.net/imgs/09/79/a1c055219b420906.png",
+                  "width": 480
+                },
+                "600x600": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "90x90": {
+                  "height": 90,
+                  "media_type": "image",
+                  "size": 15980,
+                  "url": "https://r.mradx.net/imgs/24/4e/328b945b0cc77e77.png",
+                  "width": 90
+                },
+                "original": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/imgs/8d/1f/bcc029c7793f5c1b.png",
+                  "width": 600
+                },
+                "uploaded": {
+                  "height": 600,
+                  "media_type": "image",
+                  "size": 643377,
+                  "url": "https://r.mradx.net/oimg/8d/1f/bcc029c7793f.png",
+                  "width": 600
+                }
+              }
+            },
+            "video_landscape_300s": {
+              "flags": [
+                "autogen_video"
+              ],
+              "id": 116102202,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "1280x720x1120": {
+                  "bitrate": 644.93,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 485976,
+                  "url": "https://r.mradx.net/vrs/ee/28/8e8c195f7aef36609365.mp4",
+                  "width": 1280
+                },
+                "1280x720x1120-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1120-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600": {
+                  "bitrate": 669.098,
+                  "float_length": 6.0,
+                  "height": 720,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 504102,
+                  "url": "https://r.mradx.net/vrs/bc/46/acfe03ef14499f012fe7.mp4",
+                  "width": 1280
+                },
+                "1280x720x1600-first_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 27996,
+                  "url": "https://r.mradx.net/imgs/e4/a3/4acd4213b7f12399.jpg",
+                  "width": 1280
+                },
+                "1280x720x1600-last_frame": {
+                  "height": 720,
+                  "media_type": "image",
+                  "size": 50452,
+                  "url": "https://r.mradx.net/imgs/fe/c3/4ae07e518169cbd9.jpg",
+                  "width": 1280
+                },
+                "1920x1080x3000": {
+                  "bitrate": 1354.621,
+                  "float_length": 6.0,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 1018245,
+                  "url": "https://r.mradx.net/vrs/00/ed/b76e7346a91d78173c6b.mp4",
+                  "width": 1920
+                },
+                "1920x1080x3000-first_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 45169,
+                  "url": "https://r.mradx.net/imgs/3e/55/13876bbbc23ca4a2.jpg",
+                  "width": 1920
+                },
+                "1920x1080x3000-last_frame": {
+                  "height": 1080,
+                  "media_type": "image",
+                  "size": 83753,
+                  "url": "https://r.mradx.net/imgs/17/bf/983c795a1d729c9a.jpg",
+                  "width": 1920
+                },
+                "256x144x300": {
+                  "bitrate": 63.118,
+                  "float_length": 6.0,
+                  "height": 144,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 49616,
+                  "url": "https://r.mradx.net/vrs/b4/3d/eefa95420b1fda2b1375.mp4",
+                  "width": 256
+                },
+                "256x144x300-first_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 3436,
+                  "url": "https://r.mradx.net/imgs/d6/f2/081f914121d9cf1d.jpg",
+                  "width": 256
+                },
+                "256x144x300-last_frame": {
+                  "height": 144,
+                  "media_type": "image",
+                  "size": 7133,
+                  "url": "https://r.mradx.net/imgs/03/d1/a6bcc99096bcae18.jpg",
+                  "width": 256
+                },
+                "640x360x560": {
+                  "bitrate": 232.917,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 176968,
+                  "url": "https://r.mradx.net/vrs/9c/34/be661246389a87b2501d.mp4",
+                  "width": 640
+                },
+                "640x360x560-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x560-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "640x360x800": {
+                  "bitrate": 233.494,
+                  "float_length": 6.0,
+                  "height": 360,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 177401,
+                  "url": "https://r.mradx.net/vrs/57/99/fb0c6ba172eb43b32193.mp4",
+                  "width": 640
+                },
+                "640x360x800-first_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 10943,
+                  "url": "https://r.mradx.net/imgs/ce/20/7a597bc957d7c143.jpg",
+                  "width": 640
+                },
+                "640x360x800-last_frame": {
+                  "height": 360,
+                  "media_type": "image",
+                  "size": 21837,
+                  "url": "https://r.mradx.net/imgs/4f/8b/ba57b2fc96c7140d.jpg",
+                  "width": 640
+                },
+                "internal": {
+                  "bitrate": 946.033,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 714514,
+                  "url": "https://tmp.mradx.net/s3_storage/video/42/cd/6e7ac45ddb.mp4",
+                  "width": 1920
+                },
+                "master-hls": {
+                  "bitrate": 0.476,
+                  "float_length": 6,
+                  "height": 1080,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 362,
+                  "url": "https://r.mradx.net/hlss/42/cd/6e7ac45ddb/v3/master.m3u8",
+                  "width": 1920
+                }
+              }
+            },
+            "video_portrait_4_5_180s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            },
+            "video_portrait_4_5_30s": {
+              "flags": [
+                "autogen_video",
+                "autogen_video_portrait"
+              ],
+              "id": 116102203,
+              "is_autogen": true,
+              "text_percent": null,
+              "type": "video",
+              "variants": {
+                "high": {
+                  "bitrate": 834.812,
+                  "float_length": 6.0,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 628390,
+                  "url": "https://r.mradx.net/vrs/27/f7/b32ee7c0ef2a89caa1bd.mp4",
+                  "width": 1080
+                },
+                "high-first_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 35671,
+                  "url": "https://r.mradx.net/imgs/68/bd/f56e8d39e6d281ce.jpg",
+                  "width": 1080
+                },
+                "high-last_frame": {
+                  "height": 1350,
+                  "media_type": "image",
+                  "size": 72207,
+                  "url": "https://r.mradx.net/imgs/0d/51/0599bfc08713d802.jpg",
+                  "width": 1080
+                },
+                "internal": {
+                  "bitrate": 652.314,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 494321,
+                  "url": "https://tmp.mradx.net/s3_storage/video/4c/23/cfb7b36c95.mp4",
+                  "width": 1080
+                },
+                "low": {
+                  "bitrate": 394.069,
+                  "float_length": 6.0,
+                  "height": 800,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 297831,
+                  "url": "https://r.mradx.net/vrs/08/a3/7fa6327fdbcaee4a2925.mp4",
+                  "width": 640
+                },
+                "low-first_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 17372,
+                  "url": "https://r.mradx.net/imgs/ae/04/2adc328b15741ad7.jpg",
+                  "width": 640
+                },
+                "low-last_frame": {
+                  "height": 800,
+                  "media_type": "image",
+                  "size": 40395,
+                  "url": "https://r.mradx.net/imgs/37/23/ea52e7dfe1afa794.jpg",
+                  "width": 640
+                },
+                "master-hls": {
+                  "bitrate": 0.382,
+                  "float_length": 6,
+                  "height": 1350,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 291,
+                  "url": "https://r.mradx.net/hlss/4c/23/cfb7b36c95/v3/master.m3u8",
+                  "width": 1080
+                },
+                "medium": {
+                  "bitrate": 621.457,
+                  "float_length": 6.0,
+                  "height": 1064,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 468374,
+                  "url": "https://r.mradx.net/vrs/28/88/dc51991ed4165ebcc5ce.mp4",
+                  "width": 852
+                },
+                "medium-first_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 26093,
+                  "url": "https://r.mradx.net/imgs/12/fa/e980e5556352df03.jpg",
+                  "width": 852
+                },
+                "medium-last_frame": {
+                  "height": 1064,
+                  "media_type": "image",
+                  "size": 53419,
+                  "url": "https://r.mradx.net/imgs/30/6b/6d709f5103d63ffe.jpg",
+                  "width": 852
+                },
+                "mobile": {
+                  "bitrate": 112.606,
+                  "float_length": 6.0,
+                  "height": 320,
+                  "length": 6,
+                  "media_type": "video",
+                  "size": 86732,
+                  "url": "https://r.mradx.net/vrs/59/23/e2c32e576eaefeb1944e.mp4",
+                  "width": 256
+                },
+                "mobile-first_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 5170,
+                  "url": "https://r.mradx.net/imgs/3a/60/47aa8486e5df9e16.jpg",
+                  "width": 256
+                },
+                "mobile-last_frame": {
+                  "height": 320,
+                  "media_type": "image",
+                  "size": 14071,
+                  "url": "https://r.mradx.net/imgs/af/77/625ddad3392e70ad.jpg",
+                  "width": 256
+                }
+              }
+            }
+          },
+          "content_settings": {},
+          "created": "2026-05-11 19:29:34",
+          "deeplink": null,
+          "delivery": "delivering",
+          "id": 218253919,
+          "moderation_reasons": [],
+          "moderation_status": "allowed",
+          "name": "Копия_4 Копия Объявление 2026-05-11",
+          "status": "active"
+        }
+      ]
+    }
+  ]
+}

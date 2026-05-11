@@ -138,13 +138,47 @@ python -m src.main
 
 ## Известные эндпоинты VK Ads API
 
-- **OAuth:** `POST https://target.my.com/api/v2/oauth2/token.json` (grant_type=client_credentials)
-- **API base:** `https://target.my.com/api/v2/`
-- **Account:** `GET /users/current.json`
-- **Кампании:** `GET /campaigns.json` (поля: id, name, status, budget_limit_day)
-- **Стата:** `GET /statistics/campaigns/{ids}/day.json` (date_from, date_to)
+> ⚠️ **API нового кабинета**, не legacy myTarget. См. `docs/KNOWN_GOOD_PAYLOAD.md`
+> и `docs/golden_inspect_20865519.json` — рабочий эталон из production.
 
-⚠️ Бюджеты VK хранит в **копейках** — конверсия rub*100 при записи, /100 при чтении.
+**Base:** `https://ads.vk.com/api/v2/` (для URLs — `/api/v1/urls/`)
+
+**OAuth:** `POST /oauth2/token.json` (grant_type=`client_credentials`, флаг `permanent=true` для permanent токена)
+
+**Что работает (commit `f7664bc`):**
+| Endpoint | Метод | Назначение |
+|---|---|---|
+| `/ad_plans.json` | GET | Список кампаний |
+| `/ad_plans.json` | POST | ❌ patterns ошибка (см. ниже) |
+| `/ad_groups.json` | POST | ✅ Создание ad_group с nested banners (flat payload, БЕЗ обёртки) |
+| `/banners.json` | GET | Только чтение, 405 на POST |
+| `/banners/{id}.json` | GET/PATCH | Чтение и обновление banner |
+| `/content/static.json` | POST | Multipart upload картинок |
+| `/api/v1/urls/?url=...` | GET | Регистрация URL → internal url_id |
+| `/statistics/ad_plans/day.json` | GET | Метрики |
+
+**Бюджеты — в рублях, НЕ в копейках** (это legacy myTarget). Float.
+
+**Корневые открытия Phase 3 (11 мая 2026):**
+
+1. **`POST /ad_plans.json` с нуля не работает** в нашем аккаунте — `package_id 3122` имеет пустые settings.patterns. Workaround: создавать ad_groups в существующей template-кампании (created через UI).
+
+2. **Banner создаётся ТОЛЬКО как nested внутри ad_group** (`POST /ad_groups.json`). Отдельный `POST /banners.json` не существует.
+
+3. **Banner content требует ДВЕ картинки:** `icon_256x256` + `image_600x600`. Без иконки VK не может подобрать pattern из 13 разрешённых → ошибка `"patterns must be in package's settings"`. Это была корневая причина 25 итераций фиксов.
+
+4. **Textblocks — правильные имена полей** (из официального гайда):
+   - `title_40_vkads`, `text_2000`, `about_company_115`, `cta_community_vk`
+   - Для `package_id 3122` cta_community_vk = **`"signUp"`** (фикс)
+   - Для `package_id 3127` — `"contactUs"`
+
+5. **age_list начинается с 0** — показывать тем чей возраст не определён.
+
+6. **НЕ передавать `pads`** в targetings — VK сам в auto-mode.
+
+7. **Картинку любого формата** обрабатывать через PIL: smart-crop в квадрат → resize в 600×600 и 256×256.
+
+8. **При ошибках VK** — захватывать `x-request-id` из response headers для тикетов в поддержку `ads_api@vk.team`. Реализовано в `VKAdsAPIError.diag_summary()`.
 
 ## Coding conventions
 
@@ -152,7 +186,17 @@ python -m src.main
 - Type hints обязательны на публичных функциях
 - Pydantic для всех внешних данных (VK API responses, Telegram payloads)
 - Логирование через `logging`, форматтер JSON для Railway
-- Тесты в `tests/`, pytest, моки для внешних API
+- Тесты в `tests/`, pytest+respx, моки для внешних API
+
+## ⚠️ Правила работы при изменении VK Ads payload
+
+После Phase 3 frustration session (25+ итераций гипотез):
+
+1. **Перед изменением payload — сначала посмотреть `docs/golden_inspect_20865519.json`.** Там полная структура рабочего объекта. Не угадывать — сравнивать поле в поле.
+2. **Если меняешь подобие на ошибку VK — добавь regression-тест** который мокает эту ошибку, до того как пушить фикс.
+3. **Не пушить «гипотезу для проверки»** — это превращает Vizit'а в тестировщика. Сначала локально через respx, потом push.
+4. **Если VK возвращает ошибку с `arguments`** — там часто есть подсказка с валидными значениями. Использовать их.
+5. **При новой ошибке от VK — сохранять `x-request-id`** в Telegram-сообщении (уже реализовано). Эту инфу шлёт Vizit в поддержку.
 
 ## Контекст пользователя (Vizit)
 
