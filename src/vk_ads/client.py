@@ -334,13 +334,18 @@ class VKAdsClient:
         нашу сборку payload в /services/ad_creator.py.
 
         GET /ad_plans.json?_id=<id>&fields=...
+
+        Список полей — из allowed списка, который VK сам присылает в
+        unknown_resource_fields ошибке. Добавили `campaigns` чтобы получить
+        nested структуру ad_groups одним запросом.
         """
         params: dict[str, Any] = {
             "_id": str(ad_plan_id),
             "fields": (
                 "id,name,status,objective,ad_object_type,ad_object_id,"
                 "date_start,date_end,budget_limit_day,budget_limit,"
-                "max_price,autobidding_mode,priced_goal,utm,created,updated"
+                "autobidding_mode,delivery,created,campaigns,ad_groups,"
+                "budget_optimization_enabled,efficiency_status"
             ),
         }
         result = await self._request("GET", "/ad_plans.json", params=params)
