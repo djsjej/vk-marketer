@@ -412,12 +412,19 @@ async def test_update_budget_requires_at_least_one_param():
 @pytest.mark.asyncio
 @respx.mock
 async def test_template_flow_creates_groups_with_banners_in_existing_plan():
-    """Workaround-флоу (после уточнения от поддержки VK May 2026):
-    для каждого возрастного окна создаётся новая ad_group через
-    POST /ad_groups.json с banner внутри (nested). ad_plan не создаётся —
-    используется существующий template_ad_plan_id.
+    """Workaround-флоу с правильным banner-payload по официальному гайду VK Ads:
+    icon_256x256 + image_600x600 + 4 textblocks с правильными именами полей
+    (title_40_vkads, text_2000, about_company_115, cta_community_vk=signUp).
     """
     import json
+    from io import BytesIO
+    from PIL import Image
+
+    # Реальная картинка в bytes — без неё PIL.open падает
+    test_img = Image.new("RGB", (600, 600), (200, 100, 50))
+    buf = BytesIO()
+    test_img.save(buf, format="JPEG")
+    real_image_bytes = buf.getvalue()
 
     respx.post(OAUTH_URL).mock(
         return_value=httpx.Response(
@@ -430,10 +437,20 @@ async def test_template_flow_creates_groups_with_banners_in_existing_plan():
             json={"id": 12345, "url": "https://vk.com/test", "url_object_id": 67890},
         )
     )
-    respx.post(VK_CONTENT_STATIC_URL).mock(
-        return_value=httpx.Response(200, json={"id": 555, "variants": {}})
+    # GET /ad_plans.json для подтягивания budget_limit_day у template-кампании
+    respx.get(f"{VK_API_BASE}/ad_plans.json").mock(
+        return_value=httpx.Response(
+            200,
+            json={"items": [{"id": 20865519, "budget_limit_day": 420.0}], "count": 1},
+        )
     )
-    # ad_plans.json НЕ должен вызываться
+    # Image upload: image_600x600 и icon_256x256 — 2 разных id
+    upload_counter = {"i": 0}
+    def _upload_response(request):
+        upload_counter["i"] += 1
+        return httpx.Response(200, json={"id": 500 + upload_counter["i"]})
+    respx.post(VK_CONTENT_STATIC_URL).mock(side_effect=_upload_response)
+    # ad_plans.json POST НЕ должен вызываться
     ad_plans_route = respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
         return_value=httpx.Response(500, text="не должно вызываться")
     )
@@ -441,7 +458,6 @@ async def test_template_flow_creates_groups_with_banners_in_existing_plan():
     banners_route = respx.post(f"{VK_API_BASE}/banners.json").mock(
         return_value=httpx.Response(500, text="не должно вызываться")
     )
-    # ad_groups.json — основной endpoint workaround
     call_idx = {"i": 0}
 
     def _ad_group_response(request):
@@ -449,10 +465,8 @@ async def test_template_flow_creates_groups_with_banners_in_existing_plan():
         return httpx.Response(
             200,
             json={
-                "ad_groups": [{
-                    "id": 8000 + call_idx["i"],
-                    "banners": [{"id": 9000 + call_idx["i"]}],
-                }]
+                "id": 8000 + call_idx["i"],
+                "banners": [{"id": 9000 + call_idx["i"]}],
             },
         )
 
@@ -465,32 +479,45 @@ async def test_template_flow_creates_groups_with_banners_in_existing_plan():
     )
     creator = AdCreator(client)
     summary = await creator.create_age_split_groups_in_template_plan(
-        image_bytes=b"img",
-        copy=AdCopy(title="T", text="T", about="T"),
+        image_bytes=real_image_bytes,
+        copy=AdCopy(title="Заголовок", text="Описание", about="О компании"),
         community_url="https://vk.com/test",
         template_ad_plan_id=20865519,
         age_splits=[(41, 43), (44, 46), (47, 49)],
         daily_budget_rub_per_group=200,
     )
 
-    # 1) ad_plans.json не дёргался
+    # 1) ad_plans.json POST не дёргался (используем шаблон, не создаём кампанию)
     assert ad_plans_route.call_count == 0
     # 2) banners.json не дёргался (создание banner только nested в ad_group)
     assert banners_route.call_count == 0
-    # 3) ad_groups.json вызван по разу на каждое возрастное окно
+    # 3) ad_groups.json вызван по разу на каждое окно
     assert ad_groups_route.call_count == 3
-    # 4) Каждый payload — flat (без обёртки ad_groups[]), с ad_plan_id и nested banners
+    # 4) Загрузка картинки прошла 2 раза на ВСЁ выполнение метода:
+    #    image_600x600 + icon_256x256 (грузятся один раз, не по разу на группу)
+    assert upload_counter["i"] == 2
+
+    # 5) Каждый payload — flat, с правильным набором полей banner
     for i in range(3):
         body = json.loads(ad_groups_route.calls[i].request.read())
-        # VK на обёртку отвечал unknown_resource_field: 'Unknown fields: ad_groups'
-        assert "ad_groups" not in body, "payload должен быть flat, без обёртки"
+        assert "ad_groups" not in body, "payload должен быть flat"
         assert body["ad_plan_id"] == 20865519
-        assert len(body["banners"]) == 1
-        # Targeting содержит pads нет (auto-mode) и group_members корректный
-        targetings = body["targetings"]
-        assert "pads" not in targetings
-        assert targetings["group_members"] == "not_group_member"
-    # 5) Summary имеет template-id и список созданных групп/банеров
+        # age_list начинается с 0 (по официальному гайду VK Ads)
+        assert body["targetings"]["age"]["age_list"][0] == 0
+
+        banner = body["banners"][0]
+        # Имена textblock полей строго по официальному гайду
+        assert "title_40_vkads" in banner["textblocks"]
+        assert "text_2000" in banner["textblocks"]
+        assert "about_company_115" in banner["textblocks"]
+        assert banner["textblocks"]["cta_community_vk"]["text"] == "signUp"
+        # 2 картинки в content
+        assert "icon_256x256" in banner["content"]
+        assert "image_600x600" in banner["content"]
+        # url из /api/v1/urls/
+        assert banner["urls"]["primary"]["id"] == 12345
+
+    # 6) Summary
     assert summary.ad_plan_id == 20865519
     assert summary.ad_group_ids == [8001, 8002, 8003]
     assert summary.banner_ids == [9001, 9002, 9003]

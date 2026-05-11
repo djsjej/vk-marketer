@@ -380,16 +380,44 @@ class AdCreator:
                 f"Не смог зарегистрировать URL {community_url}: {e}"
             ) from e
 
-        # 2. Загружаем картинку
+        # 2. Загружаем картинку → image_600x600 content_id
         try:
-            content_id = await self.vk.upload_image(image_bytes, image_filename)
+            image_600_id = await self.vk.upload_image(image_bytes, image_filename)
         except Exception as e:
             raise AdCreatorError(f"Не смог загрузить картинку: {e}") from e
 
+        # 2a. Делаем ресайз 256x256 (PIL) и грузим как icon_256x256.
+        # По официальному гайду VK Ads (info "Быстрый старт" для package_id 3122),
+        # banner для objective=socialengagement требует icon_256x256 в content.
+        # Без него VK не может подобрать pattern из 13 разрешённых для нашего
+        # package_id 3122 → ошибка 'At least one pattern must be in package's
+        # settings'. Это была корневая причина всех наших страданий — мы
+        # загружали только image_600x600.
+        try:
+            from io import BytesIO
+            from PIL import Image
+            img = Image.open(BytesIO(image_bytes))
+            if img.mode != "RGB":
+                img = img.convert("RGB")
+            # Smart crop в квадрат и ресайз до 256x256
+            w, h = img.size
+            side = min(w, h)
+            left = (w - side) // 2
+            top = (h - side) // 2
+            img_square = img.crop((left, top, left + side, top + side))
+            img_256 = img_square.resize((256, 256), Image.Resampling.LANCZOS)
+            buf = BytesIO()
+            img_256.save(buf, format="JPEG", quality=92)
+            icon_bytes = buf.getvalue()
+            icon_256_id = await self.vk.upload_image(icon_bytes, "icon_256x256.jpg")
+            logger.info(f"icon_256x256 загружен: id={icon_256_id}")
+        except Exception as e:
+            raise AdCreatorError(f"Не смог сделать/загрузить icon_256x256: {e}") from e
+
         logger.info(
             f"[groups-in-template] template={template_ad_plan_id}, "
-            f"url_id={internal_url_id}, content_id={content_id}, "
-            f"возрастных групп={len(age_splits)}"
+            f"url_id={internal_url_id}, image_600={image_600_id}, "
+            f"icon_256={icon_256_id}, возрастных групп={len(age_splits)}"
         )
 
         # 3. Создаём по одной ad_group на каждое возрастное окно
@@ -407,30 +435,37 @@ class AdCreator:
                 "status": "active",
                 "budget_limit_day": ad_plan_budget,
                 "budget_limit": None,
+                "max_price": 0,
                 "package_id": package_id,
                 "age_restrictions": "0+",
                 "targetings": {
                     "geo": {"regions": [188]},  # 188 = Россия
-                    "sex": ["female"],  # женщины (как в template)
-                    "age": {"age_list": age_list},
-                    "group_members": "not_group_member",
+                    "sex": ["female"],
+                    # age_list начинается с 0 (по официальному гайду VK Ads):
+                    # 0 = показывать тем, чей возраст не определён
+                    "age": {"age_list": [0] + age_list},
                 },
                 "banners": [
-                    # Минимальный banner: только name + content.image_600x600.
-                    # VK Ads автоматически:
-                    #   - берёт URL из ad_plan.ad_object_id (наша внутренняя ссылка)
-                    #   - подбирает подходящий pattern из разрешённых для package
-                    #   - генерирует video и другие форматы из image_600x600
-                    #     (флаги autogen_video, autogen_upscale, autogen_smartcrop)
-                    # Подтверждено через inspect рабочего banner от Vizit'а
-                    # (id 218239297) — там НЕТ textblocks/urls/patterns.
-                    # Поля title_40_vkads, text_2000, cta_community_vk из старых
-                    # инструкций — несуществующие; именно они приводили к
-                    # 'patterns must be in package's settings'.
+                    # Структура banner по официальному гайду VK Ads
+                    # (info "Быстрый старт" для package_id 3122):
+                    # - 2 изображения: icon_256x256 + image_600x600
+                    # - 4 textblock: title_40_vkads, text_2000,
+                    #   about_company_115, cta_community_vk
+                    # - cta_community_vk = "signUp" для package_id 3122
+                    #   (или "contactUs" для 3127)
+                    # Это правильные имена ролей — мы зря их раньше убрали.
                     {
                         "name": f"{banner_name_prefix} | {group_name} | {copy.title[:25]}",
+                        "urls": {"primary": {"id": internal_url_id}},
                         "content": {
-                            "image_600x600": {"id": content_id},
+                            "icon_256x256": {"id": icon_256_id},
+                            "image_600x600": {"id": image_600_id},
+                        },
+                        "textblocks": {
+                            "title_40_vkads": {"text": copy.title[:40]},
+                            "text_2000": {"text": copy.text[:2000]},
+                            "about_company_115": {"text": copy.about[:115]},
+                            "cta_community_vk": {"text": "signUp"},
                         },
                     }
                 ],

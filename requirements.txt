@@ -28,3 +28,6 @@ pytest==8.3.4
 pytest-asyncio==0.25.0
 pytest-mock==3.14.0
 respx==0.21.1  # mock httpx requests in tests
+
+# Image processing (для resize image_600x600 → icon_256x256)
+Pillow==10.4.0
