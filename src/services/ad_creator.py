@@ -43,18 +43,18 @@ logger = logging.getLogger(__name__)
 
 
 # patterns — ID допустимых размещений (placements) для package_id 3122.
-# VK прислал валидный список в ошибке валидации одной из ранних попыток.
+# VK прислал валидный список в ошибке валидации (arguments.patterns).
 #
-# ВАЖНО: НЕ передавать patterns в payload /ad_plans.json — ни на уровне
-# banner, ни на уровне ad_group. VK API нового кабинета отвечает на оба
-# варианта одинаково:
-#   "unknown_resource_field: Unknown fields: patterns"
-# Размещения определяются автоматически из package_id (3122 = «вступление
-# в сообщество») и/или настраиваются вручную в UI кабинета. Поле patterns
-# в публичном API создания ad_plan не используется.
+# КУДА ПИСАТЬ: на уровне banner. VK явно требует это поле в banner и при
+# отсутствии возвращает:
+#   bad_value: "At least one pattern must be in package's settings"
+#   arguments.patterns: [486, 422, 525, ...]   ← валидные ID для подсказки
 #
-# Константа сохранена для справки и будущей логики (например, если появится
-# отдельный endpoint управления размещениями). В сборку payload она НЕ идёт.
+# Замечание: в одной из ранних попыток VK на тот же payload отвечал
+# unknown_resource_field: "Unknown fields: patterns". Природа той ошибки
+# до конца не выяснена (возможно отличался какой-то другой триггер в
+# payload, либо настройки package_id в кабинете). На момент актуального
+# фикса VK стабильно требует patterns именно в banner — следуем этому.
 DEFAULT_PATTERNS_PACKAGE_3122: list[int] = [
     486, 422, 525, 527, 400, 401, 530, 338, 529, 339, 150, 145, 537,
 ]
@@ -193,6 +193,10 @@ class AdCreator:
                 "package_id": package_id,
                 "banners": [{
                     "name": f"{group_name} | {copy.title[:30]}",
+                    # patterns — VK прямо требует это поле в banner и при отсутствии
+                    # отвечает bad_value с arguments.patterns содержащим валидный
+                    # список ID. См. константу DEFAULT_PATTERNS_PACKAGE_3122.
+                    "patterns": list(DEFAULT_PATTERNS_PACKAGE_3122),
                     "urls": {"primary": {"id": internal_url_id}},
                     "textblocks": {
                         "title_40_vkads": {"text": copy.title[:40]},
@@ -225,6 +229,14 @@ class AdCreator:
             f"[Step 3/3] POST /ad_plans.json: {campaign_name}, "
             f"{len(age_splits)} групп в campaigns[], "
             f"бюджет {ad_plan_payload['budget_limit_day']} ₽/день"
+        )
+        # Полный payload — на DEBUG-уровне, чтобы при странных ошибках валидации
+        # можно было сравнить, что именно мы отправляли. На Railway включается
+        # переменной LOG_LEVEL=DEBUG.
+        import json as _json
+        logger.debug(
+            "[ad_plan payload] %s",
+            _json.dumps(ad_plan_payload, ensure_ascii=False),
         )
         try:
             response = await self.vk.create_ad_plan(ad_plan_payload)

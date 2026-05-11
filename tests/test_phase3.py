@@ -7,6 +7,7 @@ import respx
 from src.claude_brain.copywriter import fallback_copy_from_caption
 from src.services.ad_creator import (
     DEFAULT_AGE_SPLITS_ORTHODOX,
+    DEFAULT_PATTERNS_PACKAGE_3122,
     AdCopy,
     AdCreator,
     AdCreatorError,
@@ -271,20 +272,23 @@ async def test_create_age_split_campaign_full_flow():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_patterns_not_in_payload_anywhere():
-    """Regression: VK API отвергает поле `patterns` в payload /ad_plans.json
-    и на уровне banner, и на уровне ad_group:
-        "unknown_resource_field: Unknown fields: patterns"
+async def test_patterns_are_in_banner_with_valid_ids():
+    """Regression: VK API требует поле `patterns` именно в banner.
 
-    Размещения определяются автоматически из package_id и/или настраиваются
-    в UI кабинета. В публичном API создания ad_plan поле patterns не идёт.
+    Без patterns в banner VK отвечает:
+        bad_value: "At least one pattern must be in package's settings"
+        arguments.patterns: [486, 422, 525, ...]   ← валидные ID
 
-    История двух последовательных регрессов:
-    1. patterns в banner    → VK: unknown_resource_field на banner.fields
-    2. patterns в ad_group  → VK: unknown_resource_field на ad_group.fields
+    Этот тест ловит:
+    1. что patterns присутствует в banner и непустой;
+    2. что patterns НЕ кладётся одновременно в ad_group (campaigns[N]) —
+       туда VK отвечает unknown_resource_field;
+    3. что значение patterns совпадает с DEFAULT_PATTERNS_PACKAGE_3122
+       (тем списком, который VK сам прислал как валидный).
 
-    Этот тест ловит оба варианта — поле patterns не должно встречаться нигде
-    в payload отправляемом на /ad_plans.json.
+    История: в одной из ранних попыток VK на patterns в banner отвечал
+    unknown_resource_field. Природа того поведения не выяснена; текущий
+    стабильный сигнал — patterns живут в banner.
     """
     import json
 
@@ -326,12 +330,16 @@ async def test_patterns_not_in_payload_anywhere():
     ad_group = body["campaigns"][0]
     banner = ad_group["banners"][0]
 
-    # patterns не должно быть ни в banner, ни в ad_group — VK отвергает оба.
-    assert "patterns" not in banner, (
-        "patterns не должно быть в banner — VK: unknown_resource_field"
+    # 1) patterns должен быть в banner, непустой, и совпадать с константой
+    assert "patterns" in banner, (
+        "patterns должен быть в banner — VK иначе bad_value 'At least one pattern...'"
     )
+    assert isinstance(banner["patterns"], list) and len(banner["patterns"]) > 0
+    assert banner["patterns"] == DEFAULT_PATTERNS_PACKAGE_3122
+
+    # 2) patterns НЕ должен быть в ad_group — VK иначе unknown_resource_field
     assert "patterns" not in ad_group, (
-        "patterns не должно быть в ad_group — VK: unknown_resource_field"
+        "patterns не должно быть в ad_group — VK отвечает unknown_resource_field"
     )
 
 
