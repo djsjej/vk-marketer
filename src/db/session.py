@@ -12,7 +12,13 @@ logger = logging.getLogger(__name__)
 
 
 def _async_url(url: str) -> str:
-    """Преобразует sync URL в async (sqlite → sqlite+aiosqlite, postgres → postgresql+asyncpg)."""
+    """Преобразует sync URL в async (sqlite → sqlite+aiosqlite, postgres → postgresql+asyncpg).
+
+    Защита от случайных переносов строк / пробелов в DATABASE_URL — Railway
+    UI иногда добавляет невидимый \\n при сохранении переменной, и asyncpg
+    тогда падает с 'database "railway\\n" does not exist'.
+    """
+    url = url.strip()
     if url.startswith("sqlite:///"):
         return url.replace("sqlite:///", "sqlite+aiosqlite:///", 1)
     if url.startswith("postgres://"):
