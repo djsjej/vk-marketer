@@ -231,7 +231,7 @@ async def test_create_age_split_campaign_full_flow():
             200,
             json={
                 "id": 7000,
-                "campaigns": [
+                "ad_groups": [
                     {"id": 7100, "banners": [{"id": 7110}]},
                     {"id": 7200, "banners": [{"id": 7210}]},
                 ],
@@ -260,8 +260,8 @@ async def test_create_age_split_campaign_full_flow():
 
     # Проверяем тело POST'а
     body = ad_plan_route.calls[0].request.read().decode()
-    # campaigns = array of ad_groups
-    assert '"campaigns"' in body
+    # ad_groups = массив групп (актуальное имя поля)
+    assert '"ad_groups"' in body
     # ad_object на топ-уровне
     assert '"ad_object_type"' in body
     assert '"ad_object_id"' in body
@@ -306,7 +306,7 @@ async def test_payload_uses_auto_placement_mode():
     ad_plan_route = respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
         return_value=httpx.Response(
             200,
-            json={"id": 7000, "campaigns": [{"id": 7100, "banners": [{"id": 7110}]}]},
+            json={"id": 7000, "ad_groups": [{"id": 7100, "banners": [{"id": 7110}]}]},
         )
     )
 
@@ -324,7 +324,13 @@ async def test_payload_uses_auto_placement_mode():
     )
 
     body = json.loads(ad_plan_route.calls[0].request.read())
-    ad_group = body["campaigns"][0]
+    # Поле должно называться ad_groups (актуальное имя из инструкции
+    # поддержки VK), НЕ campaigns (легаси).
+    assert "ad_groups" in body, "поле должно называться ad_groups, не campaigns"
+    assert "campaigns" not in body, (
+        "campaigns — легаси-имя, VK через него триггерит старую логику валидации"
+    )
+    ad_group = body["ad_groups"][0]
     banner = ad_group["banners"][0]
     targetings = ad_group["targetings"]
 

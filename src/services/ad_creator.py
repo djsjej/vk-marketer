@@ -171,10 +171,12 @@ class AdCreator:
 
         # 3-5. Один POST на всю иерархию: ad_plan + вложенные ad_groups + banners.
         #
-        # ВАЖНО: VK называет вложенные ad_groups словом "campaigns" по легаси-
-        # причинам. Поэтому массив групп идёт в поле `campaigns: [...]`, а не
-        # `ad_groups: [...]`. Подтверждено сообщением об ошибке VK после нашей
-        # неудачной попытки batch-обёртки.
+        # Поле массива групп — `ad_groups: [...]` (актуальное имя из инструкции
+        # поддержки VK, chat 92fe567f). Раньше использовали легаси-имя
+        # `campaigns: [...]`, но через него VK триггерил старую логику валидации,
+        # которая искала несуществующее поле patterns в banner и отвечала
+        # 'unknown_resource_field' / 'At least one pattern must be in package settings'.
+        # Переменная всё ещё называется nested_campaigns для читаемости diff'а.
         nested_campaigns = []
         for age_from, age_to in age_splits:
             age_list = list(range(age_from, age_to + 1))
@@ -239,7 +241,7 @@ class AdCreator:
             "objective": "socialengagement",
             "ad_object_type": "url",
             "ad_object_id": internal_url_id,
-            "campaigns": nested_campaigns,  # ← это ad_groups, поле так названо
+            "ad_groups": nested_campaigns,  # ← актуальное имя поля (не "campaigns")
         }
 
         logger.info(
