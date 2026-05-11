@@ -416,15 +416,19 @@ class AdCreator:
                     "group_members": "not_group_member",
                 },
                 "banners": [
+                    # Минимальный banner: только name + content.image_600x600.
+                    # VK Ads автоматически:
+                    #   - берёт URL из ad_plan.ad_object_id (наша внутренняя ссылка)
+                    #   - подбирает подходящий pattern из разрешённых для package
+                    #   - генерирует video и другие форматы из image_600x600
+                    #     (флаги autogen_video, autogen_upscale, autogen_smartcrop)
+                    # Подтверждено через inspect рабочего banner от Vizit'а
+                    # (id 218239297) — там НЕТ textblocks/urls/patterns.
+                    # Поля title_40_vkads, text_2000, cta_community_vk из старых
+                    # инструкций — несуществующие; именно они приводили к
+                    # 'patterns must be in package's settings'.
                     {
                         "name": f"{banner_name_prefix} | {group_name} | {copy.title[:25]}",
-                        "urls": {"primary": {"id": internal_url_id}},
-                        "textblocks": {
-                            "title_40_vkads": {"text": copy.title[:40]},
-                            "text_2000": {"text": copy.text[:2000]},
-                            "about_company_115": {"text": copy.about[:115]},
-                            "cta_community_vk": {"text": "signUp"},
-                        },
                         "content": {
                             "image_600x600": {"id": content_id},
                         },
