@@ -143,10 +143,9 @@ def test_fallback_copy_handles_empty_caption():
 # ---------------------------------------------------------------------------
 
 
-def test_default_age_splits_orthodox_has_5_windows():
-    assert len(DEFAULT_AGE_SPLITS_ORTHODOX) == 5
-    for a, b in DEFAULT_AGE_SPLITS_ORTHODOX:
-        assert b - a == 1  # окна по 2 года
+def test_default_age_splits_orthodox_has_1_window_for_test():
+    """Дефолт временно — одна группа для теста с малым балансом."""
+    assert len(DEFAULT_AGE_SPLITS_ORTHODOX) == 1
 
 
 def test_build_ad_group_includes_age_list():

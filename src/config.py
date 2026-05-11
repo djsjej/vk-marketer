@@ -78,7 +78,7 @@ class Settings(BaseSettings):
 
     # --- Safety / Budget ---
     max_daily_spend_rub: int = Field(2000)
-    test_campaign_budget_rub: int = Field(200)
+    test_campaign_budget_rub: int = Field(100)
     hourly_no_click_threshold_rub: int = Field(300)
     auto_launch_limit_rub: int = Field(500)
 
