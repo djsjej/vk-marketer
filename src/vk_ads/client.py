@@ -369,8 +369,10 @@ class VKAdsClient:
         params: dict[str, Any] = {
             "limit": min(limit, 50),
             "fields": (
-                "id,ad_group_id,name,status,patterns,urls,textblocks,content,"
-                "moderation_status,moderation_reasons,created,updated"
+                "id,ad_group_id,ad_plan_id,campaign_id,name,status,"
+                "content,content_settings,call_to_action,blocked_patterns,"
+                "delivery,category,deeplink,created,moderation_status,"
+                "moderation_reasons"
             ),
         }
         if ad_group_id:
