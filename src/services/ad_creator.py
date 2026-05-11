@@ -380,39 +380,44 @@ class AdCreator:
                 f"Не смог зарегистрировать URL {community_url}: {e}"
             ) from e
 
-        # 2. Загружаем картинку → image_600x600 content_id
-        try:
-            image_600_id = await self.vk.upload_image(image_bytes, image_filename)
-        except Exception as e:
-            raise AdCreatorError(f"Не смог загрузить картинку: {e}") from e
-
-        # 2a. Делаем ресайз 256x256 (PIL) и грузим как icon_256x256.
-        # По официальному гайду VK Ads (info "Быстрый старт" для package_id 3122),
-        # banner для objective=socialengagement требует icon_256x256 в content.
-        # Без него VK не может подобрать pattern из 13 разрешённых для нашего
-        # package_id 3122 → ошибка 'At least one pattern must be in package's
-        # settings'. Это была корневая причина всех наших страданий — мы
-        # загружали только image_600x600.
+        # 2. Готовим 2 версии картинки и грузим в VK Ads.
+        # PIL делает smart-crop в квадрат + resize до нужного размера.
+        # На входе бот получает любой формат от пользователя (iPhone 4032x3024,
+        # горизонтальные, вертикальные, квадраты) — на выходе ровно 600x600
+        # и 256x256, как требует VK (поля image_600x600 и icon_256x256 в
+        # banner_fields имеют строгие размеры min == max).
         try:
             from io import BytesIO
             from PIL import Image
-            img = Image.open(BytesIO(image_bytes))
-            if img.mode != "RGB":
-                img = img.convert("RGB")
-            # Smart crop в квадрат и ресайз до 256x256
-            w, h = img.size
+
+            src = Image.open(BytesIO(image_bytes))
+            if src.mode != "RGB":
+                src = src.convert("RGB")
+            # Smart-crop по центру в квадрат
+            w, h = src.size
             side = min(w, h)
             left = (w - side) // 2
             top = (h - side) // 2
-            img_square = img.crop((left, top, left + side, top + side))
-            img_256 = img_square.resize((256, 256), Image.Resampling.LANCZOS)
-            buf = BytesIO()
-            img_256.save(buf, format="JPEG", quality=92)
-            icon_bytes = buf.getvalue()
-            icon_256_id = await self.vk.upload_image(icon_bytes, "icon_256x256.jpg")
-            logger.info(f"icon_256x256 загружен: id={icon_256_id}")
+            src_square = src.crop((left, top, left + side, top + side))
+
+            def _bytes_at(size: int) -> bytes:
+                resized = src_square.resize((size, size), Image.Resampling.LANCZOS)
+                buf = BytesIO()
+                resized.save(buf, format="JPEG", quality=92)
+                return buf.getvalue()
+
+            image_600_id = await self.vk.upload_image(
+                _bytes_at(600), "image_600x600.jpg"
+            )
+            icon_256_id = await self.vk.upload_image(
+                _bytes_at(256), "icon_256x256.jpg"
+            )
+            logger.info(
+                f"Загружено: image_600x600={image_600_id}, icon_256x256={icon_256_id} "
+                f"(исходник {w}x{h} → smart-crop {side}x{side})"
+            )
         except Exception as e:
-            raise AdCreatorError(f"Не смог сделать/загрузить icon_256x256: {e}") from e
+            raise AdCreatorError(f"Не смог обработать/загрузить картинку: {e}") from e
 
         logger.info(
             f"[groups-in-template] template={template_ad_plan_id}, "
