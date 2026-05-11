@@ -451,20 +451,15 @@ class VKAdsClient:
     async def create_ad_plan(self, payload: dict) -> dict:
         """Создать рекламную кампанию (ad_plan).
 
-        POST /ad_plans.json с body `{"campaigns": [<payload>]}`.
-
-        VK Ads API трактует /ad_plans.json как BATCH endpoint — ожидает массив
-        кампаний даже для одиночного создания. Без обёртки получаем ошибку
-        `validation_failed: campaigns required`.
+        POST /ad_plans.json — единый POST со всей структурой:
+        - Топ-уровень: name, status, objective, budget, ad_object_type/id, dates
+        - `campaigns: [...]` — массив ad_groups (VK называет их "campaigns" внутри
+          ad_plan по легаси-причинам). Каждый ad_group содержит свой banner.
 
         Returns:
-            Распакованный первый элемент ответа — словарь созданного ad_plan
-            с полем `id`.
+            Полный словарь созданного ad_plan, включая id и id вложенных групп/баннеров.
         """
-        response = await self._request(
-            "POST", "/ad_plans.json", json_body={"campaigns": [payload]}
-        )
-        return self._unwrap_batch_response(response, key="campaigns")
+        return await self._request("POST", "/ad_plans.json", json_body=payload)
 
     async def create_ad_group(self, payload: dict) -> dict:
         """Создать группу объявлений отдельно.

@@ -149,47 +149,18 @@ class AdCreator:
         safe_theme = theme[:50].strip()
         campaign_name = f"{campaign_name_prefix} | {safe_theme}"
 
-        # 3. POST /ad_plans.json — создаём ТОЛЬКО кампанию-контейнер,
-        # без вложенных ad_groups. Это соответствует рабочему паттерну
-        # из прошлогодних n8n-кампаний пользователя (chat 254d0ed0).
-        # Вложенный одним POST вариант падает в новом кабинете на валидации.
-        ad_plan_payload = {
-            "name": campaign_name,
-            "status": "active",
-            "date_start": date_start,
-            "date_end": date_end,
-            "autobidding_mode": "max_goals",
-            "budget_limit_day": daily_budget_rub_per_group * len(age_splits),
-            "budget_limit": None,
-            "max_price": 0,
-            "objective": "socialengagement",
-            "ad_object_id": internal_url_id,
-            "ad_object_type": "url",
-        }
-
-        logger.info(
-            f"[Step 3/5] POST /ad_plans.json: {campaign_name}, "
-            f"бюджет {ad_plan_payload['budget_limit_day']} ₽/день"
-        )
-        try:
-            plan_response = await self.vk.create_ad_plan(ad_plan_payload)
-            ad_plan_id = int(plan_response["id"])
-            logger.info(f"✅ ad_plan создана, id={ad_plan_id}")
-        except Exception as e:
-            raise AdCreatorError(f"VK не принял ad_plan: {e}") from e
-
-        # 4. Для каждой возрастной группы — POST /ad_groups.json + POST /banners.json
-        ad_group_ids: list[int] = []
-        banner_ids: list[int] = []
-
-        for idx, (age_from, age_to) in enumerate(age_splits, 1):
+        # 3-5. Один POST на всю иерархию: ad_plan + вложенные ad_groups + banners.
+        #
+        # ВАЖНО: VK называет вложенные ad_groups словом "campaigns" по легаси-
+        # причинам. Поэтому массив групп идёт в поле `campaigns: [...]`, а не
+        # `ad_groups: [...]`. Подтверждено сообщением об ошибке VK после нашей
+        # неудачной попытки batch-обёртки.
+        nested_campaigns = []
+        for age_from, age_to in age_splits:
             age_list = list(range(age_from, age_to + 1))
             group_name = f"{age_from}-{age_to}"
-
-            group_payload = {
-                "ad_plan_id": ad_plan_id,
+            nested_campaigns.append({
                 "name": group_name,
-                "status": "active",
                 "targetings": {
                     "geo": {"regions": geo_regions},
                     "sex": sex,
@@ -202,55 +173,71 @@ class AdCreator:
                 "date_end": None,
                 "age_restrictions": "0+",
                 "package_id": package_id,
-            }
+                "banners": [{
+                    "name": f"{group_name} | {copy.title[:30]}",
+                    "urls": {"primary": {"id": internal_url_id}},
+                    "textblocks": {
+                        "title_40_vkads": {"text": copy.title[:40]},
+                        "text_2000": {"text": copy.text[:2000]},
+                        "about_company_115": {"text": copy.about[:115]},
+                        "cta_community_vk": {"text": copy.cta},
+                    },
+                    "content": {
+                        "image_600x600": {"id": content_id},
+                    },
+                }],
+            })
 
-            logger.info(
-                f"[Step 4.{idx}/5] POST /ad_groups.json: {group_name}, "
-                f"возраст {age_list}"
-            )
-            try:
-                group_response = await self.vk.create_ad_group(group_payload)
-                ad_group_id = int(group_response["id"])
-                ad_group_ids.append(ad_group_id)
-                logger.info(f"✅ ad_group {group_name} создана, id={ad_group_id}")
-            except Exception as e:
-                # Если упало — кампания уже создана, оставляем как orphan
-                raise AdCreatorError(
-                    f"ad_plan {ad_plan_id} создан, но группа {group_name} упала: {e}"
-                ) from e
+        ad_plan_payload = {
+            "name": campaign_name,
+            "status": "active",
+            "date_start": date_start,
+            "date_end": date_end,
+            "autobidding_mode": "max_goals",
+            "budget_limit_day": daily_budget_rub_per_group * len(age_splits),
+            "budget_limit": None,
+            "max_price": 0,
+            "objective": "socialengagement",
+            "ad_object_type": "url",
+            "ad_object_id": internal_url_id,
+            "campaigns": nested_campaigns,  # ← это ad_groups, поле так названо
+        }
 
-            # POST /banners.json для этой группы
-            banner_payload = {
-                "ad_group_id": ad_group_id,
-                "name": f"{group_name} | {copy.title[:30]}",
-                "urls": {"primary": {"id": internal_url_id}},
-                "textblocks": {
-                    "title_40_vkads": {"text": copy.title[:40]},
-                    "text_2000": {"text": copy.text[:2000]},
-                    "about_company_115": {"text": copy.about[:115]},
-                    "cta_community_vk": {"text": copy.cta},
-                },
-                "content": {
-                    "image_600x600": {"id": content_id},
-                },
-            }
-            logger.info(f"[Step 5.{idx}/5] POST /banners.json для группы {ad_group_id}")
-            try:
-                banner_response = await self.vk.create_banner(banner_payload)
-                banner_id = int(banner_response["id"])
-                banner_ids.append(banner_id)
-                logger.info(f"✅ banner создан, id={banner_id}")
-            except Exception as e:
-                raise AdCreatorError(
-                    f"ad_plan {ad_plan_id}, группа {ad_group_id} созданы, "
-                    f"но баннер упал: {e}"
-                ) from e
+        logger.info(
+            f"[Step 3/3] POST /ad_plans.json: {campaign_name}, "
+            f"{len(age_splits)} групп в campaigns[], "
+            f"бюджет {ad_plan_payload['budget_limit_day']} ₽/день"
+        )
+        try:
+            response = await self.vk.create_ad_plan(ad_plan_payload)
+        except Exception as e:
+            raise AdCreatorError(f"VK не принял ad_plan: {e}") from e
+
+        # Парсим ответ: ad_plan_id из корня, ids групп/баннеров из nested
+        ad_plan_id = int(response.get("id", 0))
+        ad_group_ids: list[int] = []
+        banner_ids: list[int] = []
+        nested_resp = response.get("campaigns") or response.get("ad_groups") or []
+        for group in nested_resp:
+            if isinstance(group, dict) and "id" in group:
+                ad_group_ids.append(int(group["id"]))
+                for banner in group.get("banners", []):
+                    if isinstance(banner, dict) and "id" in banner:
+                        banner_ids.append(int(banner["id"]))
+
+        if not ad_plan_id:
+            raise AdCreatorError(f"В ответе VK нет id ad_plan: {response}")
+
+        logger.info(
+            f"✅ Кампания создана: ad_plan_id={ad_plan_id}, "
+            f"групп={len(ad_group_ids)}, баннеров={len(banner_ids)}"
+        )
 
         return CampaignSummary(
             ad_plan_id=ad_plan_id,
             ad_group_ids=ad_group_ids,
             banner_ids=banner_ids,
-            raw=plan_response,
+            raw=response,
         )
 
     @staticmethod
