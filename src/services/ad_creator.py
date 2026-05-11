@@ -42,28 +42,21 @@ from src.vk_ads.client import VKAdsClient
 logger = logging.getLogger(__name__)
 
 
-# pads — реальное поле VK для площадок показа (placements).
-# Живёт в `targetings` на уровне ad_group, а НЕ в banner.
+# DEFAULT_PADS — справочный список ID площадок (placements) для package_id 3122.
+# Эти ID взяты из реальной кампании 20865519, успешно созданной через UI кабинета
+# (см. /inspect в боте — раздел ad_groups[].targetings.pads).
 #
-# Эти конкретные ID взяты из реальной кампании, успешно созданной через
-# UI кабинета (ad_plan 20865519). См. /inspect <id> в боте — раздел
-# ad_groups[].targetings.pads.
+# В TEKУЩЕМ payload этот список НЕ ИСПОЛЬЗУЕТСЯ.
+# Причина: в UI кабинета по умолчанию включён тоггл «Автоматический выбор мест
+# размещения (рекомендуется)». Когда мы не передаём `pads` в targetings, VK
+# работает в auto-режиме и сам подбирает площадки. Если же передать pads явно —
+# VK переходит в manual-режим и требует чтобы patterns были pre-настроены в
+# settings package, что приводит к ошибке валидации:
+#   bad_value: "At least one pattern must be in package's settings"
 #
-# ИСТОРИЯ ЗАГАДКИ С `patterns`:
-# В предыдущих попытках мы передавали поле `patterns` в banner и в ad_group.
-# VK отвечал то `unknown_resource_field: "Unknown fields: patterns"` (поле
-# не существует), то `bad_value: "At least one pattern must be in package's
-# settings"` с arguments.patterns со списком ID [486, 422, 525, ...]. Это
-# вводило в заблуждение — мы пытались положить эти ID в payload, но VK их
-# не принимал ни в banner ни в ad_group.
-#
-# Что на самом деле:
-# - `patterns` как поле API НЕ существует ни в banner, ни в ad_group
-#   (allowed списки от VK это подтвердили).
-# - Список arguments.patterns был списком ID валидных шаблонов размещений
-#   которые должны быть **настроены в самом package_id в UI кабинета**.
-#   Это не payload-поле, а указание на настройку package.
-# - Реальный механизм управления площадками — `pads` в targetings.
+# Список сохранён как справка — на случай если в будущем понадобится
+# manual-режим с конкретными площадками и мы предварительно настроим
+# patterns в кабинете VK или придумаем другой способ.
 DEFAULT_PADS: list[int] = [
     1010345, 1265106, 1302973, 1361696, 1985149, 2243453, 2243456,
 ]
@@ -192,13 +185,18 @@ class AdCreator:
                     "geo": {"regions": geo_regions},
                     "sex": sex,
                     "age": {"age_list": age_list},
-                    # pads — площадки показа (placements). Список взят из
-                    # реальной кампании 20865519 (см. константу DEFAULT_PADS).
-                    "pads": list(DEFAULT_PADS),
                     # group_members — таргет на тех кто НЕ состоит в сообществе.
                     # Логично для objective=socialengagement: нет смысла показывать
                     # объявление о вступлении тем, кто уже вступил.
                     "group_members": "not_group_member",
+                    # ВАЖНО: НЕ передаём `pads` (площадки/placements). В UI кабинета
+                    # есть тоггл «Автоматический выбор мест размещения
+                    # (рекомендуется)» — включён по умолчанию. Когда pads не задан
+                    # в payload, VK включает auto-mode и сам подбирает площадки
+                    # под наш package_id. Если же передать pads явно — VK перейдёт
+                    # в manual-mode и потребует чтобы patterns были pre-настроены
+                    # в settings package, что вызывало ошибку
+                    # 'At least one pattern must be in package's settings'.
                 },
                 "max_price": 0,
                 "budget_limit_day": daily_budget_rub_per_group,

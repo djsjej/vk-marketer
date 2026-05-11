@@ -7,7 +7,6 @@ import respx
 from src.claude_brain.copywriter import fallback_copy_from_caption
 from src.services.ad_creator import (
     DEFAULT_AGE_SPLITS_ORTHODOX,
-    DEFAULT_PADS,
     AdCopy,
     AdCreator,
     AdCreatorError,
@@ -272,20 +271,21 @@ async def test_create_age_split_campaign_full_flow():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_payload_matches_real_vk_structure():
-    """Regression: payload должен соответствовать реальной структуре VK,
-    которую мы вытащили через /inspect <id> с кампании, успешно созданной
-    через UI кабинета (ad_plan 20865519).
+async def test_payload_uses_auto_placement_mode():
+    """Regression: payload должен оставлять VK в auto-режиме выбора площадок.
 
-    Ключевые требования (от чего ломались предыдущие попытки):
-    1. Поле `patterns` НЕ должно встречаться нигде в payload (ни в banner,
-       ни в ad_group) — это поле VK API не существует. Прошлые ошибки
-       'At least one pattern must be in package's settings' были про
-       настройки package_id в UI кабинета, а не про payload-поле.
-    2. `pads` (реальные площадки/placements) должен быть в `targetings`
-       на уровне ad_group, со списком из DEFAULT_PADS.
-    3. `group_members: "not_group_member"` в targetings — таргет на
-       не-участников сообщества (логично для socialengagement).
+    В UI кабинета по умолчанию включён тоггл «Автоматический выбор мест
+    размещения (рекомендуется)». Когда мы НЕ передаём `pads` в targetings,
+    VK работает в auto-режиме и сам подбирает площадки под package_id.
+
+    Если же передать pads (как делали в одной из предыдущих попыток),
+    VK переходит в manual-mode и требует чтобы patterns были pre-настроены
+    в settings package — это вызывает ошибку:
+        bad_value: "At least one pattern must be in package's settings"
+
+    Также проверяем:
+    - `patterns` не должно быть нигде (это поле в API не существует).
+    - `group_members: "not_group_member"` для socialengagement.
     """
     import json
 
@@ -328,16 +328,15 @@ async def test_payload_matches_real_vk_structure():
     banner = ad_group["banners"][0]
     targetings = ad_group["targetings"]
 
-    # 1) patterns не должно быть нигде
-    assert "patterns" not in banner, "patterns не должно быть в banner"
-    assert "patterns" not in ad_group, "patterns не должно быть в ad_group"
-    assert "patterns" not in targetings, "patterns не должно быть в targetings"
+    # 1) patterns не должно быть нигде — это поле API не существует
+    assert "patterns" not in banner
+    assert "patterns" not in ad_group
+    assert "patterns" not in targetings
 
-    # 2) pads должны быть в targetings и совпадать с DEFAULT_PADS
-    assert "pads" in targetings, (
-        "pads должны быть в targetings ad_group (реальная VK-структура)"
+    # 2) pads не передаём — VK должен сам выбрать площадки (auto-mode)
+    assert "pads" not in targetings, (
+        "pads не должен передаваться — VK в auto-режиме сам выбирает площадки"
     )
-    assert targetings["pads"] == DEFAULT_PADS
 
     # 3) group_members корректный для socialengagement
     assert targetings.get("group_members") == "not_group_member"
