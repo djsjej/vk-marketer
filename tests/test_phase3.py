@@ -143,9 +143,13 @@ def test_fallback_copy_handles_empty_caption():
 # ---------------------------------------------------------------------------
 
 
-def test_default_age_splits_orthodox_has_1_window_for_test():
-    """Дефолт временно — одна группа для теста с малым балансом."""
-    assert len(DEFAULT_AGE_SPLITS_ORTHODOX) == 1
+def test_default_age_splits_orthodox_has_6_windows_by_3_years():
+    """Дефолт — 6 возрастных окон по 3 года (41-43, 44-46, ..., 56-58).
+    Соответствует template-кампании, которую Vizit настроил в UI кабинета.
+    """
+    assert len(DEFAULT_AGE_SPLITS_ORTHODOX) == 6
+    for age_from, age_to in DEFAULT_AGE_SPLITS_ORTHODOX:
+        assert age_to - age_from == 2, f"окно {age_from}-{age_to} не 3 года"
 
 
 def test_build_ad_group_includes_age_list():
@@ -475,14 +479,15 @@ async def test_template_flow_creates_groups_with_banners_in_existing_plan():
     assert banners_route.call_count == 0
     # 3) ad_groups.json вызван по разу на каждое возрастное окно
     assert ad_groups_route.call_count == 3
-    # 4) Каждый payload содержит ad_plan_id и nested banners
+    # 4) Каждый payload — flat (без обёртки ad_groups[]), с ad_plan_id и nested banners
     for i in range(3):
         body = json.loads(ad_groups_route.calls[i].request.read())
-        ad_group = body["ad_groups"][0]
-        assert ad_group["ad_plan_id"] == 20865519
-        assert len(ad_group["banners"]) == 1
+        # VK на обёртку отвечал unknown_resource_field: 'Unknown fields: ad_groups'
+        assert "ad_groups" not in body, "payload должен быть flat, без обёртки"
+        assert body["ad_plan_id"] == 20865519
+        assert len(body["banners"]) == 1
         # Targeting содержит pads нет (auto-mode) и group_members корректный
-        targetings = ad_group["targetings"]
+        targetings = body["targetings"]
         assert "pads" not in targetings
         assert targetings["group_members"] == "not_group_member"
     # 5) Summary имеет template-id и список созданных групп/банеров

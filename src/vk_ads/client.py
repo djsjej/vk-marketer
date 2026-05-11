@@ -580,13 +580,24 @@ class VKAdsClient:
     async def create_ad_group(self, payload: dict) -> dict:
         """Создать группу объявлений отдельно.
 
-        POST /ad_groups.json с body `{"ad_groups": [<payload>]}`. Payload должен
-        содержать ad_plan_id.
+        POST /ad_groups.json с payload **напрямую** (без обёртки batch).
+        VK на старую обёртку `{"ad_groups": [payload]}` отвечает:
+            unknown_resource_field: "Unknown fields: ad_groups"
+
+        Payload должен содержать ad_plan_id. Можно передавать nested
+        banners[] — это валидно по подтверждению поддержки VK May 2026.
         """
         response = await self._request(
-            "POST", "/ad_groups.json", json_body={"ad_groups": [payload]}
+            "POST", "/ad_groups.json", json_body=payload
         )
-        return self._unwrap_batch_response(response, key="ad_groups")
+        # Ответ может быть как flat object с id, так и обёрткой — берём
+        # либо сам объект, либо первый из ad_groups[].
+        if isinstance(response, dict) and "ad_groups" in response:
+            items = response["ad_groups"]
+            return items[0] if items else response
+        if isinstance(response, list) and response:
+            return response[0]
+        return response if isinstance(response, dict) else {}
 
     async def create_banner(self, payload: dict) -> dict:
         """Создать одиночное объявление.
