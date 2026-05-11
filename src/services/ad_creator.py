@@ -43,15 +43,18 @@ logger = logging.getLogger(__name__)
 
 
 # patterns — ID допустимых размещений (placements) для package_id 3122.
-# VK прислал валидный список в ошибке валидации первой попытки создать кампанию.
-# Берём все 13 — максимум площадок (лента, сторис, сайдбар и т.д.).
+# VK прислал валидный список в ошибке валидации одной из ранних попыток.
 #
-# ВАЖНО: patterns живут на уровне ad_group (campaigns[N] в payload ad_plan),
-# НЕ внутри banner. Когда patterns стояли в banner, VK отвечал:
+# ВАЖНО: НЕ передавать patterns в payload /ad_plans.json — ни на уровне
+# banner, ни на уровне ad_group. VK API нового кабинета отвечает на оба
+# варианта одинаково:
 #   "unknown_resource_field: Unknown fields: patterns"
-# на путь campaigns[0].banners[0].fields.fields.
-# Логика: patterns зависят от package_id, а package_id определён на уровне
-# группы — поэтому и patterns там же.
+# Размещения определяются автоматически из package_id (3122 = «вступление
+# в сообщество») и/или настраиваются вручную в UI кабинета. Поле patterns
+# в публичном API создания ad_plan не используется.
+#
+# Константа сохранена для справки и будущей логики (например, если появится
+# отдельный endpoint управления размещениями). В сборку payload она НЕ идёт.
 DEFAULT_PATTERNS_PACKAGE_3122: list[int] = [
     486, 422, 525, 527, 400, 401, 530, 338, 529, 339, 150, 145, 537,
 ]
@@ -188,8 +191,6 @@ class AdCreator:
                 "date_end": None,
                 "age_restrictions": "0+",
                 "package_id": package_id,
-                # patterns — на уровне ad_group, НЕ внутри banner (см. константу).
-                "patterns": list(DEFAULT_PATTERNS_PACKAGE_3122),
                 "banners": [{
                     "name": f"{group_name} | {copy.title[:30]}",
                     "urls": {"primary": {"id": internal_url_id}},

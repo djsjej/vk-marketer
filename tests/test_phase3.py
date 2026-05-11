@@ -7,7 +7,6 @@ import respx
 from src.claude_brain.copywriter import fallback_copy_from_caption
 from src.services.ad_creator import (
     DEFAULT_AGE_SPLITS_ORTHODOX,
-    DEFAULT_PATTERNS_PACKAGE_3122,
     AdCopy,
     AdCreator,
     AdCreatorError,
@@ -272,12 +271,20 @@ async def test_create_age_split_campaign_full_flow():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_patterns_are_on_ad_group_level_not_banner():
-    """Regression: VK отвергает `patterns` внутри banner с ошибкой
-    `unknown_resource_field: Unknown fields: patterns`.
+async def test_patterns_not_in_payload_anywhere():
+    """Regression: VK API отвергает поле `patterns` в payload /ad_plans.json
+    и на уровне banner, и на уровне ad_group:
+        "unknown_resource_field: Unknown fields: patterns"
 
-    Patterns должны быть на уровне ad_group (campaigns[N] в payload ad_plan),
-    рядом с package_id — потому что patterns зависят именно от package_id.
+    Размещения определяются автоматически из package_id и/или настраиваются
+    в UI кабинета. В публичном API создания ad_plan поле patterns не идёт.
+
+    История двух последовательных регрессов:
+    1. patterns в banner    → VK: unknown_resource_field на banner.fields
+    2. patterns в ad_group  → VK: unknown_resource_field на ad_group.fields
+
+    Этот тест ловит оба варианта — поле patterns не должно встречаться нигде
+    в payload отправляемом на /ad_plans.json.
     """
     import json
 
@@ -319,14 +326,12 @@ async def test_patterns_are_on_ad_group_level_not_banner():
     ad_group = body["campaigns"][0]
     banner = ad_group["banners"][0]
 
-    # patterns должно быть на уровне ad_group и непустой
-    assert "patterns" in ad_group, "patterns должен быть на уровне ad_group"
-    assert isinstance(ad_group["patterns"], list) and len(ad_group["patterns"]) > 0
-    assert ad_group["patterns"] == DEFAULT_PATTERNS_PACKAGE_3122
-
-    # patterns НЕ должно быть в banner — иначе VK вернёт unknown_resource_field
+    # patterns не должно быть ни в banner, ни в ad_group — VK отвергает оба.
     assert "patterns" not in banner, (
-        "patterns не должно быть в banner — VK отвергает с unknown_resource_field"
+        "patterns не должно быть в banner — VK: unknown_resource_field"
+    )
+    assert "patterns" not in ad_group, (
+        "patterns не должно быть в ad_group — VK: unknown_resource_field"
     )
 
 
