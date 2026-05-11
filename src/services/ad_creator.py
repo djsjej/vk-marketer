@@ -207,6 +207,13 @@ class AdCreator:
                 "package_id": package_id,
                 "banners": [{
                     "name": f"{group_name} | {copy.title[:30]}",
+                    # blocked_patterns: [] — явно говорим VK что не блокируем
+                    # ни один pattern. Без этого поля VK при валидации не
+                    # может определить активные patterns и ругается
+                    # 'At least one pattern must be in package's settings'.
+                    # В реальной UI-созданной кампании blocked_patterns: []
+                    # присутствует — взяли из /inspect 20865519.
+                    "blocked_patterns": [],
                     "urls": {"primary": {"id": internal_url_id}},
                     "textblocks": {
                         "title_40_vkads": {"text": copy.title[:40]},

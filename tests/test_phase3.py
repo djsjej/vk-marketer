@@ -341,6 +341,14 @@ async def test_payload_uses_auto_placement_mode():
     # 3) group_members корректный для socialengagement
     assert targetings.get("group_members") == "not_group_member"
 
+    # 4) blocked_patterns: [] — явно говорим что не блокируем ни один pattern.
+    # Без этого поля VK не может вычислить активные patterns и ругается
+    # 'At least one pattern must be in package's settings'.
+    assert banner.get("blocked_patterns") == [], (
+        "banner.blocked_patterns должен быть [] — иначе VK не вычислит "
+        "активные patterns корректно"
+    )
+
 
 @pytest.mark.asyncio
 async def test_create_age_split_campaign_rejects_empty_splits():
