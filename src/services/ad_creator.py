@@ -175,6 +175,10 @@ class AdCreator:
                 "package_id": package_id,
                 "banners": [{
                     "name": f"{group_name} | {copy.title[:30]}",
+                    # patterns — ID допустимых размещений (placements) для данного
+                    # package_id. VK выдал нам валидный список в ошибке валидации.
+                    # Берём все 13 — покажет везде где это возможно.
+                    "patterns": [486, 422, 525, 527, 400, 401, 530, 338, 529, 339, 150, 145, 537],
                     "urls": {"primary": {"id": internal_url_id}},
                     "textblocks": {
                         "title_40_vkads": {"text": copy.title[:40]},
