@@ -7,7 +7,7 @@ import respx
 from src.claude_brain.copywriter import fallback_copy_from_caption
 from src.services.ad_creator import (
     DEFAULT_AGE_SPLITS_ORTHODOX,
-    DEFAULT_PATTERNS_PACKAGE_3122,
+    DEFAULT_PADS,
     AdCopy,
     AdCreator,
     AdCreatorError,
@@ -272,23 +272,20 @@ async def test_create_age_split_campaign_full_flow():
 
 @pytest.mark.asyncio
 @respx.mock
-async def test_patterns_are_in_banner_with_valid_ids():
-    """Regression: VK API требует поле `patterns` именно в banner.
+async def test_payload_matches_real_vk_structure():
+    """Regression: payload должен соответствовать реальной структуре VK,
+    которую мы вытащили через /inspect <id> с кампании, успешно созданной
+    через UI кабинета (ad_plan 20865519).
 
-    Без patterns в banner VK отвечает:
-        bad_value: "At least one pattern must be in package's settings"
-        arguments.patterns: [486, 422, 525, ...]   ← валидные ID
-
-    Этот тест ловит:
-    1. что patterns присутствует в banner и непустой;
-    2. что patterns НЕ кладётся одновременно в ad_group (campaigns[N]) —
-       туда VK отвечает unknown_resource_field;
-    3. что значение patterns совпадает с DEFAULT_PATTERNS_PACKAGE_3122
-       (тем списком, который VK сам прислал как валидный).
-
-    История: в одной из ранних попыток VK на patterns в banner отвечал
-    unknown_resource_field. Природа того поведения не выяснена; текущий
-    стабильный сигнал — patterns живут в banner.
+    Ключевые требования (от чего ломались предыдущие попытки):
+    1. Поле `patterns` НЕ должно встречаться нигде в payload (ни в banner,
+       ни в ad_group) — это поле VK API не существует. Прошлые ошибки
+       'At least one pattern must be in package's settings' были про
+       настройки package_id в UI кабинета, а не про payload-поле.
+    2. `pads` (реальные площадки/placements) должен быть в `targetings`
+       на уровне ad_group, со списком из DEFAULT_PADS.
+    3. `group_members: "not_group_member"` в targetings — таргет на
+       не-участников сообщества (логично для socialengagement).
     """
     import json
 
@@ -329,18 +326,21 @@ async def test_patterns_are_in_banner_with_valid_ids():
     body = json.loads(ad_plan_route.calls[0].request.read())
     ad_group = body["campaigns"][0]
     banner = ad_group["banners"][0]
+    targetings = ad_group["targetings"]
 
-    # 1) patterns должен быть в banner, непустой, и совпадать с константой
-    assert "patterns" in banner, (
-        "patterns должен быть в banner — VK иначе bad_value 'At least one pattern...'"
-    )
-    assert isinstance(banner["patterns"], list) and len(banner["patterns"]) > 0
-    assert banner["patterns"] == DEFAULT_PATTERNS_PACKAGE_3122
+    # 1) patterns не должно быть нигде
+    assert "patterns" not in banner, "patterns не должно быть в banner"
+    assert "patterns" not in ad_group, "patterns не должно быть в ad_group"
+    assert "patterns" not in targetings, "patterns не должно быть в targetings"
 
-    # 2) patterns НЕ должен быть в ad_group — VK иначе unknown_resource_field
-    assert "patterns" not in ad_group, (
-        "patterns не должно быть в ad_group — VK отвечает unknown_resource_field"
+    # 2) pads должны быть в targetings и совпадать с DEFAULT_PADS
+    assert "pads" in targetings, (
+        "pads должны быть в targetings ad_group (реальная VK-структура)"
     )
+    assert targetings["pads"] == DEFAULT_PADS
+
+    # 3) group_members корректный для socialengagement
+    assert targetings.get("group_members") == "not_group_member"
 
 
 @pytest.mark.asyncio

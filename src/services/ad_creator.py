@@ -42,21 +42,30 @@ from src.vk_ads.client import VKAdsClient
 logger = logging.getLogger(__name__)
 
 
-# patterns — ID допустимых размещений (placements) для package_id 3122.
-# VK прислал валидный список в ошибке валидации (arguments.patterns).
+# pads — реальное поле VK для площадок показа (placements).
+# Живёт в `targetings` на уровне ad_group, а НЕ в banner.
 #
-# КУДА ПИСАТЬ: на уровне banner. VK явно требует это поле в banner и при
-# отсутствии возвращает:
-#   bad_value: "At least one pattern must be in package's settings"
-#   arguments.patterns: [486, 422, 525, ...]   ← валидные ID для подсказки
+# Эти конкретные ID взяты из реальной кампании, успешно созданной через
+# UI кабинета (ad_plan 20865519). См. /inspect <id> в боте — раздел
+# ad_groups[].targetings.pads.
 #
-# Замечание: в одной из ранних попыток VK на тот же payload отвечал
-# unknown_resource_field: "Unknown fields: patterns". Природа той ошибки
-# до конца не выяснена (возможно отличался какой-то другой триггер в
-# payload, либо настройки package_id в кабинете). На момент актуального
-# фикса VK стабильно требует patterns именно в banner — следуем этому.
-DEFAULT_PATTERNS_PACKAGE_3122: list[int] = [
-    486, 422, 525, 527, 400, 401, 530, 338, 529, 339, 150, 145, 537,
+# ИСТОРИЯ ЗАГАДКИ С `patterns`:
+# В предыдущих попытках мы передавали поле `patterns` в banner и в ad_group.
+# VK отвечал то `unknown_resource_field: "Unknown fields: patterns"` (поле
+# не существует), то `bad_value: "At least one pattern must be in package's
+# settings"` с arguments.patterns со списком ID [486, 422, 525, ...]. Это
+# вводило в заблуждение — мы пытались положить эти ID в payload, но VK их
+# не принимал ни в banner ни в ad_group.
+#
+# Что на самом деле:
+# - `patterns` как поле API НЕ существует ни в banner, ни в ad_group
+#   (allowed списки от VK это подтвердили).
+# - Список arguments.patterns был списком ID валидных шаблонов размещений
+#   которые должны быть **настроены в самом package_id в UI кабинета**.
+#   Это не payload-поле, а указание на настройку package.
+# - Реальный механизм управления площадками — `pads` в targetings.
+DEFAULT_PADS: list[int] = [
+    1010345, 1265106, 1302973, 1361696, 1985149, 2243453, 2243456,
 ]
 
 
@@ -183,6 +192,13 @@ class AdCreator:
                     "geo": {"regions": geo_regions},
                     "sex": sex,
                     "age": {"age_list": age_list},
+                    # pads — площадки показа (placements). Список взят из
+                    # реальной кампании 20865519 (см. константу DEFAULT_PADS).
+                    "pads": list(DEFAULT_PADS),
+                    # group_members — таргет на тех кто НЕ состоит в сообществе.
+                    # Логично для objective=socialengagement: нет смысла показывать
+                    # объявление о вступлении тем, кто уже вступил.
+                    "group_members": "not_group_member",
                 },
                 "max_price": 0,
                 "budget_limit_day": daily_budget_rub_per_group,
@@ -193,10 +209,6 @@ class AdCreator:
                 "package_id": package_id,
                 "banners": [{
                     "name": f"{group_name} | {copy.title[:30]}",
-                    # patterns — VK прямо требует это поле в banner и при отсутствии
-                    # отвечает bad_value с arguments.patterns содержащим валидный
-                    # список ID. См. константу DEFAULT_PATTERNS_PACKAGE_3122.
-                    "patterns": list(DEFAULT_PATTERNS_PACKAGE_3122),
                     "urls": {"primary": {"id": internal_url_id}},
                     "textblocks": {
                         "title_40_vkads": {"text": copy.title[:40]},
