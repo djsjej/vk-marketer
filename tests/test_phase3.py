@@ -403,12 +403,15 @@ async def test_update_budget_requires_at_least_one_param():
         await client.update_ad_plan_budget(1)
 
 
+
+
 @pytest.mark.asyncio
 @respx.mock
-async def test_create_banners_in_template_groups_creates_one_per_group():
-    """Workaround-флоу: для каждой template-группы создаётся ровно один banner
-    через POST /banners.json. ad_plan не создаётся (используется существующий
-    template_ad_plan_id).
+async def test_template_flow_creates_groups_with_banners_in_existing_plan():
+    """Workaround-флоу (после уточнения от поддержки VK May 2026):
+    для каждого возрастного окна создаётся новая ad_group через
+    POST /ad_groups.json с banner внутри (nested). ad_plan не создаётся —
+    используется существующий template_ad_plan_id.
     """
     import json
 
@@ -426,101 +429,63 @@ async def test_create_banners_in_template_groups_creates_one_per_group():
     respx.post(VK_CONTENT_STATIC_URL).mock(
         return_value=httpx.Response(200, json={"id": 555, "variants": {}})
     )
-    # ad_plans.json НЕ должен вызываться в этом флоу
+    # ad_plans.json НЕ должен вызываться
     ad_plans_route = respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
-        return_value=httpx.Response(500, text="должно не вызываться")
+        return_value=httpx.Response(500, text="не должно вызываться")
     )
-    # Каждый banner получает свой ID, начиная с 9001
-    banner_call_idx = {"i": 0}
-
-    def _banner_response(request):
-        banner_call_idx["i"] += 1
-        return httpx.Response(
-            200,
-            json={"banners": [{"id": 9000 + banner_call_idx["i"]}]},
-        )
-
+    # banners.json НЕ должен вызываться (поддержка сказала: только GET/PATCH)
     banners_route = respx.post(f"{VK_API_BASE}/banners.json").mock(
-        side_effect=_banner_response
+        return_value=httpx.Response(500, text="не должно вызываться")
     )
+    # ad_groups.json — основной endpoint workaround
+    call_idx = {"i": 0}
 
-    client = VKAdsClient(
-        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
-    )
-    creator = AdCreator(client)
-    summary = await creator.create_banners_in_template_groups(
-        image_bytes=b"img",
-        copy=AdCopy(title="T", text="T", about="T"),
-        community_url="https://vk.com/test",
-        template_ad_plan_id=20865519,
-        template_ad_group_ids=[137881410, 137893759, 137893760],
-    )
-
-    # 1) ad_plan не создавался
-    assert ad_plans_route.call_count == 0, (
-        "create_banners_in_template_groups не должен трогать /ad_plans.json"
-    )
-    # 2) Один POST /banners.json на каждую template-группу
-    assert banners_route.call_count == 3
-    # 3) В каждом banner payload — правильный ad_group_id
-    for i, gid in enumerate([137881410, 137893759, 137893760]):
-        body = json.loads(banners_route.calls[i].request.read())
-        assert body["banners"][0]["ad_group_id"] == gid
-    # 4) Summary имеет template-id и список banner-id
-    assert summary.ad_plan_id == 20865519
-    assert summary.banner_ids == [9001, 9002, 9003]
-    assert summary.ad_group_ids == [137881410, 137893759, 137893760]
-
-
-@pytest.mark.asyncio
-@respx.mock
-async def test_create_banners_in_template_continues_on_partial_failure():
-    """Если один banner упал, остальные продолжают создаваться. Если все упали —
-    raise AdCreatorError с диагностикой VK.
-    """
-    respx.post(OAUTH_URL).mock(
-        return_value=httpx.Response(
-            200, json={"access_token": "tk", "expires_in": 86400}
-        )
-    )
-    respx.get("https://ads.vk.com/api/v1/urls/").mock(
-        return_value=httpx.Response(
-            200,
-            json={"id": 12345, "url": "https://vk.com/test", "url_object_id": 67890},
-        )
-    )
-    respx.post(VK_CONTENT_STATIC_URL).mock(
-        return_value=httpx.Response(200, json={"id": 555, "variants": {}})
-    )
-
-    # 3 группы: первая упадёт 400, вторая ок, третья ок
-    call_counter = {"i": 0}
-
-    def _banner_response(request):
-        call_counter["i"] += 1
-        if call_counter["i"] == 1:
-            return httpx.Response(
-                400,
-                headers={"x-request-id": "fail-1"},
-                json={"error": {"code": "validation_failed"}},
-            )
+    def _ad_group_response(request):
+        call_idx["i"] += 1
         return httpx.Response(
             200,
-            json={"banners": [{"id": 9000 + call_counter["i"]}]},
+            json={
+                "ad_groups": [{
+                    "id": 8000 + call_idx["i"],
+                    "banners": [{"id": 9000 + call_idx["i"]}],
+                }]
+            },
         )
 
-    respx.post(f"{VK_API_BASE}/banners.json").mock(side_effect=_banner_response)
+    ad_groups_route = respx.post(f"{VK_API_BASE}/ad_groups.json").mock(
+        side_effect=_ad_group_response
+    )
 
     client = VKAdsClient(
         authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
     )
     creator = AdCreator(client)
-    summary = await creator.create_banners_in_template_groups(
+    summary = await creator.create_age_split_groups_in_template_plan(
         image_bytes=b"img",
         copy=AdCopy(title="T", text="T", about="T"),
         community_url="https://vk.com/test",
         template_ad_plan_id=20865519,
-        template_ad_group_ids=[111, 222, 333],
+        age_splits=[(41, 43), (44, 46), (47, 49)],
+        daily_budget_rub_per_group=200,
     )
-    # Только два banner создались (1-й упал)
-    assert summary.banner_ids == [9002, 9003]
+
+    # 1) ad_plans.json не дёргался
+    assert ad_plans_route.call_count == 0
+    # 2) banners.json не дёргался (создание banner только nested в ad_group)
+    assert banners_route.call_count == 0
+    # 3) ad_groups.json вызван по разу на каждое возрастное окно
+    assert ad_groups_route.call_count == 3
+    # 4) Каждый payload содержит ad_plan_id и nested banners
+    for i in range(3):
+        body = json.loads(ad_groups_route.calls[i].request.read())
+        ad_group = body["ad_groups"][0]
+        assert ad_group["ad_plan_id"] == 20865519
+        assert len(ad_group["banners"]) == 1
+        # Targeting содержит pads нет (auto-mode) и group_members корректный
+        targetings = ad_group["targetings"]
+        assert "pads" not in targetings
+        assert targetings["group_members"] == "not_group_member"
+    # 5) Summary имеет template-id и список созданных групп/банеров
+    assert summary.ad_plan_id == 20865519
+    assert summary.ad_group_ids == [8001, 8002, 8003]
+    assert summary.banner_ids == [9001, 9002, 9003]

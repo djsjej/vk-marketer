@@ -308,39 +308,48 @@ class AdCreator:
             raw=response,
         )
 
-    async def create_banners_in_template_groups(
+    async def create_age_split_groups_in_template_plan(
         self,
         *,
         image_bytes: bytes,
         copy: AdCopy,
         community_url: str,
         template_ad_plan_id: int,
-        template_ad_group_ids: list[int],
+        age_splits: list[tuple[int, int]],
+        daily_budget_rub_per_group: int,
+        package_id: int = 3122,
         banner_name_prefix: str = "bot",
         image_filename: str = "image.jpg",
     ) -> CampaignSummary:
-        """Создать N банеров в готовых template-группах (workaround-флоу).
+        """Создать N новых ad_groups с banner внутри в существующей кампании.
 
-        Используется когда package_id у аккаунта не имеет настроенных
-        patterns и нельзя создать кампанию через POST /ad_plans.json.
-        Vizit вручную создал шаблонную кампанию с группами через UI,
-        а бот добавляет в неё banner через POST /banners.json (это
-        работает без проблем — package_id уже инициализирован UI-флоу).
+        Этот workaround используется когда нельзя создать кампанию через
+        POST /ad_plans.json из-за пустых package settings. Vizit вручную
+        создал шаблонную кампанию через UI (это инициализирует patterns
+        settings в package), а бот добавляет в неё новые ad_groups через
+        POST /ad_groups.json (поддержка VK подтвердила: banner создаётся
+        ТОЛЬКО как nested внутри ad_group, отдельный POST /banners.json
+        не поддерживается — только GET/PATCH).
 
         Шаги:
-            1. Регистрируем URL сообщества → получаем internal url_id.
-            2. Загружаем картинку → получаем content_id.
-            3. Для каждой template-группы создаём один banner через
-               POST /banners.json.
+            1. Регистрируем URL → internal url_id (для banners[].urls.primary).
+            2. Загружаем картинку → content_id.
+            3. Для каждого возрастного окна создаём новую ad_group через
+               POST /ad_groups.json с body содержащим banners[] (один banner).
+
+        Args:
+            template_ad_plan_id: ID кампании из VK_TEMPLATE_AD_PLAN_ID.
+            age_splits: список (age_from, age_to) — окна возраста.
+            daily_budget_rub_per_group: бюджет на каждую группу в день.
 
         Returns:
-            CampaignSummary с ad_plan_id шаблона и списком ID созданных
-            банеров (по одному на группу).
+            CampaignSummary с template_ad_plan_id и списками id новых
+            групп и баннеров.
         """
-        if not template_ad_group_ids:
-            raise AdCreatorError("template_ad_group_ids пустой")
+        if not age_splits:
+            raise AdCreatorError("age_splits пустой")
 
-        # 1. Регистрируем URL — получаем internal url_id для banners[].urls.primary
+        # 1. Регистрируем URL
         try:
             url_info = await self.vk.get_or_register_url(community_url)
             internal_url_id = int(url_info["id"])
@@ -349,65 +358,96 @@ class AdCreator:
                 f"Не смог зарегистрировать URL {community_url}: {e}"
             ) from e
 
-        # 2. Загружаем картинку → content_id (upload_image возвращает int)
+        # 2. Загружаем картинку
         try:
             content_id = await self.vk.upload_image(image_bytes, image_filename)
         except Exception as e:
             raise AdCreatorError(f"Не смог загрузить картинку: {e}") from e
 
         logger.info(
-            f"[banners-in-template] url_id={internal_url_id}, content_id={content_id}, "
-            f"шаблон ad_plan={template_ad_plan_id}, групп={len(template_ad_group_ids)}"
+            f"[groups-in-template] template={template_ad_plan_id}, "
+            f"url_id={internal_url_id}, content_id={content_id}, "
+            f"возрастных групп={len(age_splits)}"
         )
 
-        # 3. Создаём по banner на каждую template-группу
+        # 3. Создаём по одной ad_group на каждое возрастное окно
+        ad_group_ids: list[int] = []
         banner_ids: list[int] = []
         last_error: VKAdsAPIError | None = None
-        for group_id in template_ad_group_ids:
-            banner_payload = {
-                "ad_group_id": group_id,
-                "name": f"{banner_name_prefix} | {copy.title[:30]}",
-                "urls": {"primary": {"id": internal_url_id}},
-                "textblocks": {
-                    "title_40_vkads": {"text": copy.title[:40]},
-                    "text_2000": {"text": copy.text[:2000]},
-                    "about_company_115": {"text": copy.about[:115]},
-                    "cta_community_vk": {"text": "signUp"},
+
+        for age_from, age_to in age_splits:
+            group_name = f"{age_from}-{age_to}"
+            age_list = list(range(age_from, age_to + 1))
+
+            ad_group_payload = {
+                "ad_plan_id": template_ad_plan_id,
+                "name": group_name,
+                "status": "active",
+                "budget_limit_day": daily_budget_rub_per_group,
+                "budget_limit": None,
+                "package_id": package_id,
+                "age_restrictions": "0+",
+                "targetings": {
+                    "geo": {"regions": [188]},  # 188 = Россия
+                    "sex": ["female"],  # женщины (как в template)
+                    "age": {"age_list": age_list},
+                    "group_members": "not_group_member",
                 },
-                "content": {
-                    "image_600x600": {"id": content_id},
-                },
+                "banners": [
+                    {
+                        "name": f"{banner_name_prefix} | {group_name} | {copy.title[:25]}",
+                        "urls": {"primary": {"id": internal_url_id}},
+                        "textblocks": {
+                            "title_40_vkads": {"text": copy.title[:40]},
+                            "text_2000": {"text": copy.text[:2000]},
+                            "about_company_115": {"text": copy.about[:115]},
+                            "cta_community_vk": {"text": "signUp"},
+                        },
+                        "content": {
+                            "image_600x600": {"id": content_id},
+                        },
+                    }
+                ],
             }
+
             try:
-                banner_resp = await self.vk.create_banner(banner_payload)
+                group_resp = await self.vk.create_ad_group(ad_group_payload)
             except VKAdsAPIError as e:
                 last_error = e
                 logger.error(
-                    f"Banner для группы {group_id} не создан: {e} "
-                    f"({e.diag_summary()})"
+                    f"ad_group {group_name} не создана: {e} ({e.diag_summary()})"
                 )
                 continue
-            banner_id = banner_resp.get("id")
-            if banner_id is not None:
-                banner_ids.append(int(banner_id))
-                logger.info(f"Banner {banner_id} создан в группе {group_id}")
 
-        if not banner_ids:
-            # Все банеры провалились — пробрасываем последнюю ошибку с диагностикой
+            gid = group_resp.get("id")
+            if gid is not None:
+                ad_group_ids.append(int(gid))
+                # banners[] в ответе содержит созданные banner'ы
+                resp_banners = group_resp.get("banners") or []
+                for b in resp_banners:
+                    bid = b.get("id")
+                    if bid is not None:
+                        banner_ids.append(int(bid))
+                logger.info(
+                    f"✅ ad_group {gid} ({group_name}) создана с "
+                    f"{len(resp_banners)} banner'ом"
+                )
+
+        if not ad_group_ids:
             raise AdCreatorError(
-                f"Ни одного banner не создалось в {len(template_ad_group_ids)} группах. "
+                f"Ни одной группы не создалось в {len(age_splits)} окнах. "
                 f"Последняя ошибка: {last_error}",
                 vk_error=last_error,
             )
 
         logger.info(
-            f"✅ Создано {len(banner_ids)}/{len(template_ad_group_ids)} банеров "
-            f"в шаблоне ad_plan={template_ad_plan_id}"
+            f"✅ Создано {len(ad_group_ids)}/{len(age_splits)} групп + "
+            f"{len(banner_ids)} banner в шаблоне ad_plan={template_ad_plan_id}"
         )
 
         return CampaignSummary(
             ad_plan_id=template_ad_plan_id,
-            ad_group_ids=list(template_ad_group_ids),
+            ad_group_ids=ad_group_ids,
             banner_ids=banner_ids,
             raw=None,
         )

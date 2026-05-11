@@ -543,17 +543,20 @@ async def _create_campaign_from_pending(
     )
 
     try:
-        # Если настроена template-кампания — используем workaround-флоу.
-        # Бот создаёт banner в готовые группы шаблона через POST /banners.json
-        # вместо создания всей кампании с нуля через POST /ad_plans.json.
-        # Это обход проблемы пустых package settings в нашем аккаунте.
+        # Если настроена template-кампания — workaround-флоу.
+        # Бот создаёт новые ad_groups (с banner внутри) в существующую
+        # template-кампанию через POST /ad_groups.json. Старая кампания
+        # уже инициализировала patterns settings в package через UI-flow.
+        # Поддержка VK (May 2026) подтвердила: banner создаётся только как
+        # nested внутри ad_group, отдельный POST /banners.json не работает.
         if settings.has_template_campaign:
-            summary = await creator.create_banners_in_template_groups(
+            summary = await creator.create_age_split_groups_in_template_plan(
                 image_bytes=pending["image_bytes"],
                 copy=copy,
                 community_url=community_url,
                 template_ad_plan_id=settings.vk_template_ad_plan_id,
-                template_ad_group_ids=settings.vk_template_group_ids_parsed,
+                age_splits=DEFAULT_AGE_SPLITS_ORTHODOX,
+                daily_budget_rub_per_group=settings.test_campaign_budget_rub,
                 banner_name_prefix="bot-test",
                 image_filename=pending["filename"],
             )

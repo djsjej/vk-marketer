@@ -137,11 +137,15 @@ class Settings(BaseSettings):
 
     @property
     def has_template_campaign(self) -> bool:
-        """Template-кампания сконфигурирована."""
-        return (
-            self.vk_template_ad_plan_id is not None
-            and len(self.vk_template_group_ids_parsed) > 0
-        )
+        """Template-кампания сконфигурирована.
+
+        После уточнения от поддержки VK (May 2026) для workaround достаточно
+        только VK_TEMPLATE_AD_PLAN_ID — бот создаёт новые ad_groups в эту
+        кампанию через POST /ad_groups.json. Старая env var
+        VK_TEMPLATE_AD_GROUP_IDS оставлена для обратной совместимости, но
+        больше не нужна.
+        """
+        return self.vk_template_ad_plan_id is not None
 
 
 # Singleton — импортируется модулями
