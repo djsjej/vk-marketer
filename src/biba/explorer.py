@@ -29,68 +29,82 @@ logger = logging.getLogger("biba")
 FINDINGS_DIR = Path("docs/biba_findings")
 
 
-# Endpoints для исследования. Это справочники — данные не зависят от
-# конкретного кабинета. Структура: (имя, метод+путь, описание).
+# Endpoints для исследования.
+#
+# Источник истины — оглавление VK Реклама API из docs/LINKS_VK_ADS.pdf и
+# VK_Реклама___платформа_для_рекламы_на_проектах_VK.pdf (Project Knowledge).
+# НЕ ДОГАДЫВАТЬСЯ — только то что подтверждено в документации Vizit'а.
+#
+# Структура: (имя, метод+путь, описание).
 # Путь начинается со слэша и НЕ включает базовый URL.
 #
-# Список собран эмпирически:
-# - то что упоминалось в /api/v2/ ранее работало (например /banner_fields)
-# - typical VK Ads dictionaries: /dictionary/<resource>
-# - top-level resources: попробуем GET без id чтобы получить list view со схемой
+# Что точно подтверждено документацией:
+# - Dictionary: только regions и interests (см. LINKS_VK_ADS.pdf)
+# - Resources с list view (plural form, GET без id):
+#   Remarketing/segments, LeadForms, Subscriptions, Surveys,
+#   ProductCatalogs, Products, AudienceFeeds, SharingKeys.
+#
+# Чего тут нет и быть НЕ ДОЛЖНО (типичные ошибки):
+# - /objectives.json, /strategies.json, /formats.json, /packages.json
+#   Это разделы info-документации, не endpoints. У них нет API.
+# - /devices.json, /browsers.json и т.п. — таргетинг по device идёт
+#   как поля внутри targetings, отдельных справочников VK Ads нет.
+#
+# Если нужно добавить новый endpoint — найди подтверждение в PDF Project
+# Knowledge или попроси у Vizit'а страницу /resource/<Name>.
 ENDPOINTS_TO_EXPLORE: list[tuple[str, str, str]] = [
-    # --- Базовые справочники таргетинга ---
-    ("regions", "/regions.json?limit=300", "Все регионы — страны, города, локации"),
-    ("targetings_tree", "/targetings_tree.json", "Дерево интересов и категорий"),
-    ("sex", "/sex.json", "Справочник пола (M/F/U)"),
-    ("age", "/age.json", "Справочник возрастов"),
-    ("areas", "/areas.json", "Типы географических объектов"),
-    ("languages", "/languages.json", "Языки интерфейса"),
+    # --- Подтверждённые dictionary endpoints (LINKS_VK_ADS.pdf) ---
+    ("dictionary_regions", "/dictionary/regions.json?limit=500",
+     "Все регионы — страны, города, локации"),
+    ("dictionary_interests", "/dictionary/interests.json",
+     "Категории интересов (плоский список)"),
 
-    # --- Каталоги VK Ads ---
-    ("packages", "/packages.json", "ВСЕ типы кампаний (package_id): 3122, 3127, ..."),
-    ("objectives", "/objectives.json", "Все цели (socialengagement, traffic, lead_form, ...)"),
-    ("cta_buttons", "/cta_buttons.json", "Все CTA: signUp, contactUs, learnMore, ..."),
-    ("strategies", "/strategies.json", "Стратегии ставок: max_goals, min_price, ..."),
-    ("formats", "/formats.json", "Форматы рекламы: универсальное, карусель, ..."),
-    ("autobidding_modes", "/autobidding_modes.json", "Режимы автоставок"),
+    # --- Remarketing (аудитории/сегменты — read-only list) ---
+    ("remarketing_segments", "/remarketing/segments.json",
+     "Существующие сегменты ремаркетинга кабинета"),
+    ("remarketing_pixels", "/remarketing/pixels.json",
+     "Установленные VK Pixel"),
+    ("remarketing_users_lists", "/remarketing/users_lists.json",
+     "Загруженные списки контактов"),
 
-    # --- Banner-сторона ---
-    ("banner_fields", "/banner_fields.json", "Все 193 поля banner с типами/лимитами"),
-    ("banner_patterns", "/banner_patterns.json", "Все 137 системных patterns"),
-    ("banner_textblocks", "/banner_textblocks.json", "Доступные текстовые блоки"),
-    ("banner_content_types", "/banner_content_types.json", "Типы контента (image_600x600, icon, video)"),
+    # --- Лид-формы ---
+    ("lead_forms", "/lead_forms.json",
+     "Все лид-формы кабинета"),
 
-    # --- Устройства и площадки ---
-    ("devices", "/devices.json", "Типы устройств: desktop/mobile/tablet"),
-    ("mobile_os", "/mobile_os.json", "Мобильные ОС"),
-    ("operating_systems", "/operating_systems.json", "ОС: Win/Mac/iOS/Android"),
-    ("pads", "/pads.json", "Площадки/места размещения"),
-    ("browsers", "/browsers.json", "Браузеры"),
+    # --- Подписки и опросы ---
+    ("subscriptions", "/subscriptions.json",
+     "Подписки на рассылки"),
+    ("surveys", "/surveys.json",
+     "Опросы"),
 
-    # --- Аудитории/ремаркетинг (только справочники, не сегменты) ---
-    ("audience_types", "/audience_types.json", "Типы аудиторий (lookalike, pixel, list, ...)"),
-    ("remarketing_segment_types", "/remarketing_segment_types.json", "Типы сегментов"),
+    # --- Каталоги товаров / товарный фид ---
+    ("product_catalogs", "/product_catalogs.json",
+     "Каталоги товаров для динамической рекламы"),
+    ("products", "/products.json",
+     "Товары в каталогах"),
+    ("audience_feeds", "/audience_feeds.json",
+     "Фиды аудиторий"),
 
-    # --- Финансы (справочные) ---
-    ("currencies", "/currencies.json", "Валюты"),
-    ("transaction_types", "/transaction_types.json", "Типы транзакций"),
+    # --- Ключи sharing / прочее ---
+    ("sharing_keys", "/sharing_keys.json",
+     "Ключи разделения доступа"),
 
-    # --- Категории и интересы ---
-    ("interests", "/interests.json", "Все интересы (плоский список)"),
-    ("categories", "/categories.json", "Категории рекламируемых объектов"),
-    ("age_restrictions", "/age_restrictions.json", "Возрастные ограничения (0+, 12+, ...)"),
+    # --- Финансы (для агентских — может вернуть 403) ---
+    ("transactions", "/transactions.json",
+     "Транзакции (пополнения/списания)"),
+    ("transaction_groups", "/transaction_groups.json",
+     "Группы транзакций"),
 
-    # --- Лид-формы и опросы (справочники) ---
-    ("lead_form_field_types", "/lead_form_field_types.json", "Типы полей лид-форм"),
-    ("survey_question_types", "/survey_question_types.json", "Типы вопросов опросов"),
-    ("subscription_types", "/subscription_types.json", "Типы подписок/рассылок"),
+    # --- URL объекты продвижения ---
+    ("urls_v1", "/urls/", "URL объекты продвижения (v1 endpoint)"),
 
-    # --- Лимиты и квоты ---
-    ("throttling", "/throttling.json", "Текущие лимиты API"),
-    ("limits", "/limits.json", "Лимиты на объекты в кабинете"),
-
-    # --- Account-info (без id, в надежде на схему) ---
-    ("user_current", "/users/current.json", "Текущий пользователь — что VK о нас знает"),
+    # --- Top-level resources уже используемые ботом (sanity check) ---
+    ("ad_plans", "/ad_plans.json?limit=5",
+     "Все кампании кабинета (только sample 5 шт)"),
+    ("ad_groups", "/ad_groups.json?limit=5",
+     "Все группы кабинета (только sample)"),
+    ("banner_fields", "/banner_fields.json",
+     "Каталог всех полей banner (193 поля — упоминалось ранее)"),
 ]
 
 
