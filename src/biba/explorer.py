@@ -31,81 +31,137 @@ FINDINGS_DIR = Path("docs/biba_findings")
 
 # Endpoints для исследования.
 #
-# Источник истины — оглавление VK Реклама API из docs/LINKS_VK_ADS.pdf и
-# VK_Реклама___платформа_для_рекламы_на_проектах_VK.pdf (Project Knowledge).
-# НЕ ДОГАДЫВАТЬСЯ — только то что подтверждено в документации Vizit'а.
+# Источник истины — полное оглавление API из PDF в Project Knowledge:
+# VK_Реклама___платформа_для_рекламы_на_проектах_VK.pdf — раздел "Методы"
+# содержит каталог всех ресурсов VK Ads API:
+#   - Рекламные объекты (Packages, TargetingsTree, PadsTree, BannerFields,
+#     BannerPatterns, MobileApps, ...)
+#   - Аудитории (RemarketingCounters, Segments, LocalGeos, Goals, ...)
+#   - Справочники мобильные (AppleApp, GoogleApp, MobileCategory, ...)
+#   - Финансы (Transactions, TransactionGroups)
+#   - Лид-формы, Подписки, Опросы, SharingKeys.
+# LINKS_VK_ADS.pdf — подтверждённые URL Vizit'а из чатов с поддержкой VK.
 #
-# Структура: (имя, метод+путь, описание).
-# Путь начинается со слэша и НЕ включает базовый URL.
-#
-# Что точно подтверждено документацией:
-# - Dictionary: только regions и interests (см. LINKS_VK_ADS.pdf)
-# - Resources с list view (plural form, GET без id):
-#   Remarketing/segments, LeadForms, Subscriptions, Surveys,
-#   ProductCatalogs, Products, AudienceFeeds, SharingKeys.
-#
-# Чего тут нет и быть НЕ ДОЛЖНО (типичные ошибки):
-# - /objectives.json, /strategies.json, /formats.json, /packages.json
-#   Это разделы info-документации, не endpoints. У них нет API.
-# - /devices.json, /browsers.json и т.п. — таргетинг по device идёт
-#   как поля внутри targetings, отдельных справочников VK Ads нет.
-#
-# Если нужно добавить новый endpoint — найди подтверждение в PDF Project
-# Knowledge или попроси у Vizit'а страницу /resource/<Name>.
+# Маппинг: ResourceName (PascalCase) → endpoint /resource_snake_case.json
+# Это типичный VK Ads pattern: list view = GET /<plural>.json
 ENDPOINTS_TO_EXPLORE: list[tuple[str, str, str]] = [
-    # --- Подтверждённые dictionary endpoints (LINKS_VK_ADS.pdf) ---
+    # ====================================================================
+    # СПРАВОЧНИКИ /dictionary/* (раздел "Прочие справочники" LINKS)
+    # ====================================================================
     ("dictionary_regions", "/dictionary/regions.json?limit=500",
-     "Все регионы — страны, города, локации"),
+     "Регионы — страны, города (188=Россия)"),
     ("dictionary_interests", "/dictionary/interests.json",
-     "Категории интересов (плоский список)"),
+     "Все интересы — плоский список"),
 
-    # --- Remarketing (аудитории/сегменты — read-only list) ---
+    # ====================================================================
+    # РЕКЛАМНЫЕ ОБЪЕКТЫ ("Методы → Рекламные объекты" из PDF)
+    # ====================================================================
+    ("packages", "/packages.json",
+     "Все пакеты (типы кампаний): 3122 Вступить, 3127 Написать, ..."),
+    ("packages_pads", "/packages_pads.json",
+     "Связь пакетов с площадками — где какой package показывается"),
+    ("targetings_tree", "/targetings_tree.json",
+     "Дерево интересов (категории → подкатегории)"),
+    ("pads_tree", "/pads_tree.json",
+     "Дерево площадок: VK feed, stories, sidebar, ..."),
+    ("banner_fields", "/banner_fields.json",
+     "Все 193 поля banner с типами и лимитами"),
+    ("banner_patterns", "/banner_patterns.json",
+     "Все 137 системных patterns"),
+    ("projection_prediction", "/projection_prediction.json",
+     "Прогноз показов и охвата"),
+
+    # ====================================================================
+    # МОБИЛЬНЫЕ СПРАВОЧНИКИ ("Справочники" из PDF)
+    # ====================================================================
+    ("mobile_apps", "/mobile_apps.json",
+     "Каталог мобильных приложений для таргета"),
+    ("mobile_categories", "/mobile_categories.json",
+     "Категории мобильных приложений"),
+    ("mobile_operating_systems", "/mobile_operating_systems.json",
+     "Мобильные ОС (iOS / Android версии)"),
+    ("mobile_operators", "/mobile_operators.json",
+     "Мобильные операторы"),
+    ("mobile_types", "/mobile_types.json",
+     "Типы мобильных устройств"),
+    ("mobile_vendors", "/mobile_vendors.json",
+     "Производители: Apple, Samsung, Xiaomi, ..."),
+    ("apple_apps", "/apple_apps.json",
+     "Каталог iOS-приложений App Store"),
+    ("google_apps", "/google_apps.json",
+     "Каталог Android-приложений Google Play"),
+
+    # ====================================================================
+    # АУДИТОРИИ / РЕМАРКЕТИНГ ("Методы → Аудитории" из PDF)
+    # ====================================================================
     ("remarketing_segments", "/remarketing/segments.json",
-     "Существующие сегменты ремаркетинга кабинета"),
-    ("remarketing_pixels", "/remarketing/pixels.json",
-     "Установленные VK Pixel"),
+     "Существующие сегменты ремаркетинга"),
+    ("remarketing_counters", "/remarketing/counters.json",
+     "VK Pixels — счётчики на сайтах"),
     ("remarketing_users_lists", "/remarketing/users_lists.json",
-     "Загруженные списки контактов"),
+     "Загруженные CRM-списки контактов"),
+    ("counter_goals", "/counter_goals.json",
+     "Цели на пикселях (купил/добавил в корзину/...)"),
+    ("goals", "/goals.json",
+     "Цели кабинета (для оптимизации по конверсии)"),
+    ("segments", "/segments.json",
+     "Все сегменты (более широко чем remarketing)"),
+    ("local_geos", "/local_geos.json",
+     "Локальные гео-точки (круги вокруг адресов)"),
+    ("in_app_event_categories", "/in_app_event_categories.json",
+     "Категории in-app событий"),
 
-    # --- Лид-формы ---
+    # ====================================================================
+    # ЛИД-ФОРМЫ ("Методы → Лид-формы" из PDF)
+    # ====================================================================
     ("lead_forms", "/lead_forms.json",
      "Все лид-формы кабинета"),
 
-    # --- Подписки и опросы ---
+    # ====================================================================
+    # ПОДПИСКИ И ОПРОСЫ ("Методы → Подписки/Опросы" из PDF)
+    # ====================================================================
     ("subscriptions", "/subscriptions.json",
-     "Подписки на рассылки"),
+     "Подписки на рассылки (наш кейс с именами!)"),
     ("surveys", "/surveys.json",
      "Опросы"),
 
-    # --- Каталоги товаров / товарный фид ---
+    # ====================================================================
+    # КАТАЛОГИ ТОВАРОВ
+    # ====================================================================
     ("product_catalogs", "/product_catalogs.json",
      "Каталоги товаров для динамической рекламы"),
-    ("products", "/products.json",
-     "Товары в каталогах"),
     ("audience_feeds", "/audience_feeds.json",
-     "Фиды аудиторий"),
+     "Аудиторные фиды"),
 
-    # --- Ключи sharing / прочее ---
+    # ====================================================================
+    # SHARING / ДОСТУПЫ
+    # ====================================================================
     ("sharing_keys", "/sharing_keys.json",
-     "Ключи разделения доступа"),
+     "Ключи разделения доступа к кабинету"),
 
-    # --- Финансы (для агентских — может вернуть 403) ---
+    # ====================================================================
+    # ФИНАНСЫ ("Методы → Финансы" из PDF)
+    # ====================================================================
     ("transactions", "/transactions.json",
      "Транзакции (пополнения/списания)"),
     ("transaction_groups", "/transaction_groups.json",
      "Группы транзакций"),
 
-    # --- URL объекты продвижения ---
-    ("urls_v1", "/urls/", "URL объекты продвижения (v1 endpoint)"),
+    # ====================================================================
+    # URL — объекты продвижения (v1 endpoint, не v2!)
+    # ====================================================================
+    ("urls_v1", "/urls/", "URL объекты продвижения (v1)"),
 
-    # --- Top-level resources уже используемые ботом (sanity check) ---
+    # ====================================================================
+    # SANITY — что бот уже использует
+    # ====================================================================
     ("ad_plans", "/ad_plans.json?limit=5",
-     "Все кампании кабинета (только sample 5 шт)"),
+     "Кампании кабинета (sample 5)"),
     ("ad_groups", "/ad_groups.json?limit=5",
-     "Все группы кабинета (только sample)"),
-    ("banner_fields", "/banner_fields.json",
-     "Каталог всех полей banner (193 поля — упоминалось ранее)"),
+     "Группы кабинета (sample)"),
 ]
+
+
 
 
 @dataclass
