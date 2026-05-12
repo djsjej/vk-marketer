@@ -701,3 +701,50 @@ async def test_budget_exceeds_balance_returns_friendly_error():
             daily_budget_rub_per_group=420,
             days_duration=7,
         )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_minimum_daily_budget_check():
+    """Pre-flight: дневной бюджет кампании (daily × groups) должен быть
+    >= 100₽ (минимум VK). Если меньше — ошибка ДО отправки в VK."""
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    respx.get("https://ads.vk.com/api/v1/urls/").mock(
+        return_value=httpx.Response(
+            200, json={"id": 12345, "url_object_id": 67890}
+        )
+    )
+    upload_counter = {"i": 0}
+
+    def _upload_resp(request):
+        upload_counter["i"] += 1
+        return httpx.Response(200, json={"id": 500 + upload_counter["i"]})
+
+    respx.post(VK_CONTENT_STATIC_URL).mock(side_effect=_upload_resp)
+    ad_plan_route = respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
+        return_value=httpx.Response(500, text="не должно вызываться")
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    creator = AdCreator(client)
+
+    # 10₽/день × 6 групп = 60₽/день кампании < 100₽ минимум
+    with pytest.raises(AdCreatorError, match="меньше минимума VK"):
+        await creator.create_age_split_campaign(
+            image_bytes=_real_image_bytes(),
+            theme="t",
+            copy=AdCopy(title="T", text="T", about="T"),
+            community_url="https://vk.com/test",
+            age_splits=[(41, 43), (44, 46), (47, 49), (50, 52), (53, 55), (56, 58)],
+            daily_budget_rub_per_group=10,
+            days_duration=7,
+        )
+
+    # POST в VK НЕ дёрнули — pre-flight остановил
+    assert ad_plan_route.call_count == 0
