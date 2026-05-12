@@ -98,6 +98,9 @@ class Settings(BaseSettings):
     # --- Safety / Budget ---
     max_daily_spend_rub: int = Field(2000)
     test_campaign_budget_rub: int = Field(100)
+    # Длительность тестовых кампаний в днях. По умолчанию 1 — самый дешёвый
+    # тест: 100₽/группа × 6 групп × 1 день = 600₽. Vizit может увеличить.
+    test_campaign_days: int = Field(1)
     hourly_no_click_threshold_rub: int = Field(300)
     auto_launch_limit_rub: int = Field(500)
 

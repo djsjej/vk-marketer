@@ -568,6 +568,7 @@ async def _create_campaign_from_pending(
                 community_url=community_url,
                 age_splits=DEFAULT_AGE_SPLITS_ORTHODOX,
                 daily_budget_rub_per_group=settings.test_campaign_budget_rub,
+                days_duration=settings.test_campaign_days,
                 campaign_name_prefix="bot-test",
                 image_filename=pending["filename"],
             )

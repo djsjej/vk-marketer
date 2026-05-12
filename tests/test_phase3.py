@@ -734,7 +734,7 @@ async def test_minimum_daily_budget_check():
     )
     creator = AdCreator(client)
 
-    # 10₽/день × 6 групп = 60₽/день кампании < 100₽ минимум
+    # 10₽/день на группу < 100₽ минимум VK на группу
     with pytest.raises(AdCreatorError, match="меньше минимума VK"):
         await creator.create_age_split_campaign(
             image_bytes=_real_image_bytes(),

@@ -281,19 +281,16 @@ class AdCreator:
             "ad_groups": nested_campaigns,  # ← актуальное имя поля (не "campaigns")
         }
 
-        # PRE-FLIGHT 1: минимум 100₽/день на кампанию (известный лимит VK).
-        # Если daily × groups < 100, VK выдаст unallowed_value на budget_limit_day
-        # групп. Ловим тут с понятным сообщением.
-        campaign_daily = daily_budget_rub_per_group * len(age_splits)
-        VK_MIN_CAMPAIGN_DAILY = 100  # рубли, минимум дневного бюджета кампании
-        if campaign_daily < VK_MIN_CAMPAIGN_DAILY:
-            min_per_group = (VK_MIN_CAMPAIGN_DAILY + len(age_splits) - 1) // len(age_splits)
+        # PRE-FLIGHT 1: минимум 100₽/день на КАЖДУЮ ГРУППУ (известный лимит VK).
+        # Раньше думали что это лимит кампании, но ошибка 'min_value' на
+        # budget_limit_day групп показала: VK проверяет каждую группу отдельно.
+        VK_MIN_GROUP_DAILY = 100  # рубли, минимум дневного бюджета группы
+        if daily_budget_rub_per_group < VK_MIN_GROUP_DAILY:
             raise AdCreatorError(
-                f"Дневной бюджет кампании ({campaign_daily}₽ = "
-                f"{daily_budget_rub_per_group}₽/день × {len(age_splits)} групп) "
-                f"меньше минимума VK ({VK_MIN_CAMPAIGN_DAILY}₽/день). "
+                f"Дневной бюджет группы ({daily_budget_rub_per_group}₽) "
+                f"меньше минимума VK ({VK_MIN_GROUP_DAILY}₽/группа). "
                 f"Увеличь TEST_CAMPAIGN_BUDGET_RUB в Railway "
-                f"минимум до {min_per_group}₽."
+                f"минимум до {VK_MIN_GROUP_DAILY}."
             )
 
         logger.info(
