@@ -265,4 +265,14 @@ async def explore(client: VKAdsClient) -> ExpeditionReport:
     with open(json_file, "w", encoding="utf-8") as fp:
         json.dump([asdict(f) for f in report.findings], fp, ensure_ascii=False, indent=2)
 
+    # Биба думает: что ещё стоит проверить? Генерируем PROPOSALS.md.
+    # Это его «второй мозг» — анализ найденного и выдвижение гипотез
+    # (мнение полей, упоминания путей в ответах, вариации, синонимы).
+    from src.biba.proposals import generate_proposals, proposals_to_markdown
+    proposals = generate_proposals(report.findings)
+    proposals_file = FINDINGS_DIR / "PROPOSALS.md"
+    proposals_file.write_text(proposals_to_markdown(proposals), encoding="utf-8")
+    print(f"\n💡 Биба предложил ещё {len(proposals)} endpoints для проверки.")
+    print(f"   См. docs/biba_findings/PROPOSALS.md")
+
     return report
