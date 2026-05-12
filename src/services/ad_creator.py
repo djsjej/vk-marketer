@@ -164,14 +164,44 @@ class AdCreator:
                 f"Не смог зарегистрировать URL {community_url}: {e}"
             ) from e
 
-        # 2. Грузим картинку → content_id
-        logger.info(f"Загружаю картинку ({len(image_bytes)} байт) в VK")
+        # 2. Готовим 2 версии картинки (image_600x600 + icon_256x256) и грузим.
+        # Любой формат картинки от пользователя → smart-crop в квадрат → resize.
+        # БЕЗ icon_256x256 patterns для package 3122 не подбираются →
+        # ошибка 'patterns must be in package settings'. Это была корневая
+        # причина 25+ итераций фиксов в Phase 3.
+        # Тот же подход что в create_age_split_groups_in_template_plan.
+        logger.info(f"Обрабатываю и загружаю картинку ({len(image_bytes)} байт)")
         try:
-            content_id = await self.vk.upload_image(
-                image_bytes=image_bytes, filename=image_filename
+            from io import BytesIO
+            from PIL import Image
+
+            src = Image.open(BytesIO(image_bytes))
+            if src.mode != "RGB":
+                src = src.convert("RGB")
+            w, h = src.size
+            side = min(w, h)
+            left = (w - side) // 2
+            top = (h - side) // 2
+            src_square = src.crop((left, top, left + side, top + side))
+
+            def _bytes_at(size: int) -> bytes:
+                resized = src_square.resize((size, size), Image.Resampling.LANCZOS)
+                buf = BytesIO()
+                resized.save(buf, format="JPEG", quality=92)
+                return buf.getvalue()
+
+            image_600_id = await self.vk.upload_image(
+                _bytes_at(600), "image_600x600.jpg"
+            )
+            icon_256_id = await self.vk.upload_image(
+                _bytes_at(256), "icon_256x256.jpg"
+            )
+            logger.info(
+                f"Загружено: image_600x600={image_600_id}, "
+                f"icon_256x256={icon_256_id} (исходник {w}x{h})"
             )
         except Exception as e:
-            raise AdCreatorError(f"Не смог загрузить картинку: {e}") from e
+            raise AdCreatorError(f"Не смог обработать/загрузить картинку: {e}") from e
 
         # 3. Собираем payload ad_plan с вложенными группами и баннерами
         today = date.today()
@@ -192,7 +222,10 @@ class AdCreator:
         # Переменная всё ещё называется nested_campaigns для читаемости diff'а.
         nested_campaigns = []
         for age_from, age_to in age_splits:
-            age_list = list(range(age_from, age_to + 1))
+            # age_list начинается с 0 — показывать тем чей возраст не указан
+            # (по официальному гайду VK Ads "Быстрый старт"). Без 0 теряем
+            # часть аудитории.
+            age_list = [0] + list(range(age_from, age_to + 1))
             group_name = f"{age_from}-{age_to}"
             nested_campaigns.append({
                 "name": group_name,
@@ -200,18 +233,10 @@ class AdCreator:
                     "geo": {"regions": geo_regions},
                     "sex": sex,
                     "age": {"age_list": age_list},
-                    # group_members — таргет на тех кто НЕ состоит в сообществе.
-                    # Логично для objective=socialengagement: нет смысла показывать
-                    # объявление о вступлении тем, кто уже вступил.
-                    "group_members": "not_group_member",
-                    # ВАЖНО: НЕ передаём `pads` (площадки/placements). В UI кабинета
-                    # есть тоггл «Автоматический выбор мест размещения
-                    # (рекомендуется)» — включён по умолчанию. Когда pads не задан
-                    # в payload, VK включает auto-mode и сам подбирает площадки
-                    # под наш package_id. Если же передать pads явно — VK перейдёт
-                    # в manual-mode и потребует чтобы patterns были pre-настроены
-                    # в settings package, что вызывало ошибку
-                    # 'At least one pattern must be in package's settings'.
+                    # ВАЖНО: НЕ передаём `pads` — auto-mode сам подбирает
+                    # площадки под package_id. При явных pads VK переходит в
+                    # manual-mode и требует patterns в settings package.
+                    # group_members тоже не передаём (это для package 3194).
                 },
                 "max_price": 0,
                 "budget_limit_day": daily_budget_rub_per_group,
@@ -222,22 +247,21 @@ class AdCreator:
                 "package_id": package_id,
                 "banners": [{
                     "name": f"{group_name} | {copy.title[:30]}",
-                    # blocked_patterns: [] — явно говорим VK что не блокируем
-                    # ни один pattern. Без этого поля VK при валидации не
-                    # может определить активные patterns и ругается
-                    # 'At least one pattern must be in package's settings'.
-                    # В реальной UI-созданной кампании blocked_patterns: []
-                    # присутствует — взяли из /inspect 20865519.
-                    "blocked_patterns": [],
                     "urls": {"primary": {"id": internal_url_id}},
                     "textblocks": {
                         "title_40_vkads": {"text": copy.title[:40]},
                         "text_2000": {"text": copy.text[:2000]},
                         "about_company_115": {"text": copy.about[:115]},
+                        # Для package 3122 (Вступить) — "signUp"
+                        # Для package 3127 (Написать) — "contactUs"
+                        # Для package 3194 (Вовлеченность) — другой объект banner
                         "cta_community_vk": {"text": copy.cta},
                     },
                     "content": {
-                        "image_600x600": {"id": content_id},
+                        # ОБЕ картинки обязательны для подбора pattern в
+                        # package 3122. Без icon_256x256 patterns ошибка.
+                        "icon_256x256": {"id": icon_256_id},
+                        "image_600x600": {"id": image_600_id},
                     },
                 }],
             })

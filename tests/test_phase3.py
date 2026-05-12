@@ -21,6 +21,18 @@ from src.vk_ads.upload import (
 )
 
 
+def _real_image_bytes(width: int = 600, height: int = 600) -> bytes:
+    """Реальная PNG картинка в bytes — для тестов где AdCreator делает PIL.open.
+    Используется вместо фейковых b"img" которые PIL не может разпарсить."""
+    from io import BytesIO
+    from PIL import Image
+
+    img = Image.new("RGB", (width, height), (200, 100, 50))
+    buf = BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
+
+
 # ---------------------------------------------------------------------------
 # upload.py
 # ---------------------------------------------------------------------------
@@ -215,7 +227,10 @@ def test_parse_create_response_raises_when_no_id():
 @pytest.mark.asyncio
 @respx.mock
 async def test_create_age_split_campaign_full_flow():
-    """End-to-end: URL registration + image upload + single nested POST /ad_plans.json."""
+    """End-to-end: URL registration + image upload (2 размера: 600 + 256)
+    + single nested POST /ad_plans.json с правильным banner payload."""
+    import json as _json
+
     respx.post(OAUTH_URL).mock(
         return_value=httpx.Response(
             200, json={"access_token": "tk", "expires_in": 86400}
@@ -227,9 +242,15 @@ async def test_create_age_split_campaign_full_flow():
             json={"id": 12345, "url": "https://vk.com/test", "url_object_id": 67890},
         )
     )
-    respx.post(VK_CONTENT_STATIC_URL).mock(
-        return_value=httpx.Response(200, json={"id": 555, "variants": {}})
-    )
+    # Картинка грузится 2 раза (image_600x600 + icon_256x256) — мок возвращает
+    # последовательно 2 разных id чтобы можно было проверить что оба используются.
+    upload_counter = {"i": 0}
+
+    def _upload_resp(request):
+        upload_counter["i"] += 1
+        return httpx.Response(200, json={"id": 500 + upload_counter["i"]})
+
+    respx.post(VK_CONTENT_STATIC_URL).mock(side_effect=_upload_resp)
     ad_plan_route = respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
         return_value=httpx.Response(
             200,
@@ -249,7 +270,7 @@ async def test_create_age_split_campaign_full_flow():
     creator = AdCreator(client)
 
     summary = await creator.create_age_split_campaign(
-        image_bytes=b"img",
+        image_bytes=_real_image_bytes(),
         theme="test theme",
         copy=AdCopy(title="Т", text="Длинный текст", about="О"),
         community_url="https://vk.com/test",
@@ -261,16 +282,25 @@ async def test_create_age_split_campaign_full_flow():
     assert summary.ad_group_ids == [7100, 7200]
     assert summary.banner_ids == [7110, 7210]
     assert ad_plan_route.call_count == 1
+    # Картинка загружалась 2 раза (image_600x600 + icon_256x256)
+    assert upload_counter["i"] == 2
 
-    # Проверяем тело POST'а
-    body = ad_plan_route.calls[0].request.read().decode()
+    # Проверяем тело POST'а — структура по официальному гайду
+    body = _json.loads(ad_plan_route.calls[0].request.read())
     # ad_groups = массив групп (актуальное имя поля)
-    assert '"ad_groups"' in body
-    # ad_object на топ-уровне
-    assert '"ad_object_type"' in body
-    assert '"ad_object_id"' in body
-    # name на топ-уровне
-    assert '"name"' in body
+    assert "ad_groups" in body
+    assert body["ad_object_type"] == "url"
+    assert body["ad_object_id"] == 12345
+    # Banner должен иметь обе картинки и все 4 textblock
+    banner = body["ad_groups"][0]["banners"][0]
+    assert "icon_256x256" in banner["content"], "без icon — patterns ошибка"
+    assert "image_600x600" in banner["content"]
+    assert "title_40_vkads" in banner["textblocks"]
+    assert "text_2000" in banner["textblocks"]
+    assert "about_company_115" in banner["textblocks"]
+    assert "cta_community_vk" in banner["textblocks"]
+    # age_list начинается с 0 — для тех чей возраст не указан
+    assert body["ad_groups"][0]["targetings"]["age"]["age_list"][0] == 0
 
 
 @pytest.mark.asyncio
@@ -278,18 +308,14 @@ async def test_create_age_split_campaign_full_flow():
 async def test_payload_uses_auto_placement_mode():
     """Regression: payload должен оставлять VK в auto-режиме выбора площадок.
 
-    В UI кабинета по умолчанию включён тоггл «Автоматический выбор мест
-    размещения (рекомендуется)». Когда мы НЕ передаём `pads` в targetings,
-    VK работает в auto-режиме и сам подбирает площадки под package_id.
+    Phase 3 разобрался: workaround = НЕ передавать pads и group_members.
+    VK сам подбирает площадки под package_id 3122.
 
-    Если же передать pads (как делали в одной из предыдущих попыток),
-    VK переходит в manual-mode и требует чтобы patterns были pre-настроены
-    в settings package — это вызывает ошибку:
-        bad_value: "At least one pattern must be in package's settings"
-
-    Также проверяем:
-    - `patterns` не должно быть нигде (это поле в API не существует).
-    - `group_members: "not_group_member"` для socialengagement.
+    Также проверяем что:
+    - `patterns` не передаётся (поле в API не существует)
+    - `blocked_patterns` не передаётся (тоже)
+    - `pads` не передаётся (auto-mode)
+    - icon_256x256 ОБЯЗАТЕЛЬНО присутствует
     """
     import json
 
@@ -304,9 +330,13 @@ async def test_payload_uses_auto_placement_mode():
             json={"id": 12345, "url": "https://vk.com/test", "url_object_id": 67890},
         )
     )
-    respx.post(VK_CONTENT_STATIC_URL).mock(
-        return_value=httpx.Response(200, json={"id": 555, "variants": {}})
-    )
+    upload_counter = {"i": 0}
+
+    def _upload_resp(request):
+        upload_counter["i"] += 1
+        return httpx.Response(200, json={"id": 500 + upload_counter["i"]})
+
+    respx.post(VK_CONTENT_STATIC_URL).mock(side_effect=_upload_resp)
     ad_plan_route = respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
         return_value=httpx.Response(
             200,
@@ -319,7 +349,7 @@ async def test_payload_uses_auto_placement_mode():
     )
     creator = AdCreator(client)
     await creator.create_age_split_campaign(
-        image_bytes=b"img",
+        image_bytes=_real_image_bytes(),
         theme="t",
         copy=AdCopy(title="T", text="T", about="T"),
         community_url="https://vk.com/test",
@@ -328,36 +358,35 @@ async def test_payload_uses_auto_placement_mode():
     )
 
     body = json.loads(ad_plan_route.calls[0].request.read())
-    # Поле должно называться ad_groups (актуальное имя из инструкции
-    # поддержки VK), НЕ campaigns (легаси).
-    assert "ad_groups" in body, "поле должно называться ad_groups, не campaigns"
-    assert "campaigns" not in body, (
-        "campaigns — легаси-имя, VK через него триггерит старую логику валидации"
-    )
+    # Поле должно называться ad_groups (актуальное имя из инструкции VK)
+    assert "ad_groups" in body, "поле должно называться ad_groups"
+    assert "campaigns" not in body, "campaigns — легаси-имя"
+
     ad_group = body["ad_groups"][0]
     banner = ad_group["banners"][0]
     targetings = ad_group["targetings"]
 
-    # 1) patterns не должно быть нигде — это поле API не существует
+    # 1) patterns/blocked_patterns не передаются — это устаревшие гипотезы
     assert "patterns" not in banner
     assert "patterns" not in ad_group
     assert "patterns" not in targetings
-
-    # 2) pads не передаём — VK должен сам выбрать площадки (auto-mode)
-    assert "pads" not in targetings, (
-        "pads не должен передаваться — VK в auto-режиме сам выбирает площадки"
+    assert "blocked_patterns" not in banner, (
+        "blocked_patterns был неработающей гипотезой — убран"
     )
 
-    # 3) group_members корректный для socialengagement
-    assert targetings.get("group_members") == "not_group_member"
+    # 2) pads не передаём — VK сам выбирает площадки в auto-режиме
+    assert "pads" not in targetings
 
-    # 4) blocked_patterns: [] — явно говорим что не блокируем ни один pattern.
-    # Без этого поля VK не может вычислить активные patterns и ругается
-    # 'At least one pattern must be in package's settings'.
-    assert banner.get("blocked_patterns") == [], (
-        "banner.blocked_patterns должен быть [] — иначе VK не вычислит "
-        "активные patterns корректно"
+    # 3) group_members не передаётся — это поле для package_id 3194
+    # (Повысить вовлечённость), не для нашего 3122 (Вступить в сообщество)
+    assert "group_members" not in targetings, (
+        "group_members не нужен для package 3122 — оставляем VK решать"
     )
+
+    # 4) Banner должен иметь icon_256x256 — без него ошибка
+    # 'patterns must be in package settings'
+    assert "icon_256x256" in banner["content"]
+    assert "image_600x600" in banner["content"]
 
 
 @pytest.mark.asyncio
