@@ -595,6 +595,10 @@ async def _create_campaign_from_pending(
         context.user_data.pop(_VARIANTS_KEY, None)
         context.user_data.pop(_CAMPAIGN_KEY, None)
 
+    # URL на просмотр кампании в кабинете VK — чтобы Vizit мог быстро
+    # посмотреть как кампания выглядит и сразу дать фидбэк / отключить.
+    cabinet_url = f"https://ads.vk.com/hq/edit/ad_plan/{summary.ad_plan_id}"
+
     msg_lines = [
         "✅ *Кампания создана!*",
         "",
@@ -602,9 +606,15 @@ async def _create_campaign_from_pending(
         f"Групп: {len(summary.ad_group_ids)}",
         f"Объявлений: {len(summary.banner_ids)}",
         "",
+        f"🔗 [Посмотреть в кабинете]({cabinet_url})",
+        "",
         "Через 1-2 часа после модерации VK начнут идти показы.",
     ]
-    await query.edit_message_text("\n".join(msg_lines), parse_mode="Markdown")
+    await query.edit_message_text(
+        "\n".join(msg_lines),
+        parse_mode="Markdown",
+        disable_web_page_preview=True,
+    )
 
 
 # ============================================================================
