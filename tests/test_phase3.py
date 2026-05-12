@@ -631,3 +631,73 @@ async def test_get_statistics_v3_limits_ids_to_200():
         await client.get_statistics_v3(
             object_type="ad_groups", ids=list(range(201)), date_from="2026-05-01"
         )
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_budget_exceeds_balance_returns_friendly_error():
+    """VK отвечает 400 с budget_limit_day:unallowed_value когда проектный
+    бюджет превышает баланс. Бот должен перехватить это и выдать понятное
+    сообщение с рекомендациями вместо сырой VK-ошибки."""
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    respx.get("https://ads.vk.com/api/v1/urls/").mock(
+        return_value=httpx.Response(
+            200, json={"id": 12345, "url_object_id": 67890}
+        )
+    )
+    upload_counter = {"i": 0}
+
+    def _upload_resp(request):
+        upload_counter["i"] += 1
+        return httpx.Response(200, json={"id": 500 + upload_counter["i"]})
+
+    respx.post(VK_CONTENT_STATIC_URL).mock(side_effect=_upload_resp)
+
+    # VK возвращает реальную ошибку про unallowed_value для budget_limit_day
+    respx.post(f"{VK_API_BASE}/ad_plans.json").mock(
+        return_value=httpx.Response(
+            400,
+            json={
+                "error": {
+                    "code": "validation_failed",
+                    "message": "Validation failed",
+                    "fields": {
+                        "campaigns": {
+                            "code": "bad_items",
+                            "message": "Bad items in list",
+                            "items": [{
+                                "fields": {
+                                    "budget_limit_day": {
+                                        "code": "unallowed_value",
+                                        "message": "Unallowed value",
+                                    },
+                                },
+                                "code": "object_validation",
+                                "message": "Object is invalid",
+                            }],
+                        }
+                    },
+                }
+            },
+        )
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    creator = AdCreator(client)
+
+    with pytest.raises(AdCreatorError, match="бюджет превышает баланс"):
+        await creator.create_age_split_campaign(
+            image_bytes=_real_image_bytes(),
+            theme="t",
+            copy=AdCopy(title="T", text="T", about="T"),
+            community_url="https://vk.com/test",
+            age_splits=[(41, 43), (44, 46), (47, 49), (50, 52), (53, 55), (56, 58)],
+            daily_budget_rub_per_group=420,
+            days_duration=7,
+        )

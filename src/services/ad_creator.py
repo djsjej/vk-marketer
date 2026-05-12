@@ -297,6 +297,33 @@ class AdCreator:
         try:
             response = await self.vk.create_ad_plan(ad_plan_payload)
         except VKAdsAPIError as e:
+            # Особый перехват для budget_limit_day: unallowed_value.
+            # VK возвращает эту ошибку когда проектный бюджет
+            # (daily × groups × days) превышает баланс кабинета. Через API
+            # для новых кабинетов баланс получить нельзя, поэтому делаем
+            # умное сообщение из текста ошибки.
+            err_body = str(e.body) if e.body else ""
+            if (
+                "budget_limit_day" in err_body
+                and "unallowed_value" in err_body
+            ):
+                daily_total = daily_budget_rub_per_group * len(age_splits)
+                project_total = daily_total * days_duration
+                # Предлагаем варианты которые точно влезут в 1000₽ баланс
+                # (типичный тестовый кабинет). Если у пользователя баланс
+                # больше — он легко увеличит. Если меньше — дальше уточнит.
+                raise AdCreatorError(
+                    f"VK отказал: бюджет превышает баланс кабинета.\n\n"
+                    f"Проект сейчас: {daily_budget_rub_per_group}₽/день × "
+                    f"{len(age_splits)} групп × {days_duration} дней = "
+                    f"{project_total}₽\n\n"
+                    f"Уменьши бюджет в Railway env TEST_CAMPAIGN_BUDGET_RUB "
+                    f"или сократи количество групп/дней. Примеры рабочих "
+                    f"комбинаций для баланса ~1000₽:\n"
+                    f"• 100₽/день × {len(age_splits)} групп × 1 день\n"
+                    f"• 20₽/день × {len(age_splits)} групп × 7 дней",
+                    vk_error=e,
+                ) from e
             # Пробрасываем VKAdsAPIError целиком — у него внутри request_id и
             # время, которые нужны для тикетов в поддержку VK.
             raise AdCreatorError(
