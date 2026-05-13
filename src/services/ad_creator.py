@@ -272,8 +272,16 @@ class AdCreator:
             "date_start": date_start,
             "date_end": date_end,
             "autobidding_mode": "max_goals",
-            "budget_limit_day": daily_budget_rub_per_group * len(age_splits),
+            # CBO (Campaign Budget Optimization) — режим оптимизации бюджета
+            # кампании. budget_limit_day задаётся ОБЩИЙ на кампанию, VK сам
+            # распределяет между группами автоматически. Минимум: 100₽/день
+            # (из UI кабинета VK, скрин 13.05.2026).
+            # Подтверждено сравнением с golden_inspect_20865519.json:
+            # ad_plan.budget_limit_day = 420.0 + budget_optimization_enabled=true,
+            # ad_group.budget_limit_day = 420.0 (одинаковое!).
+            "budget_limit_day": daily_budget_rub_per_group,
             "budget_limit": None,
+            "budget_optimization_enabled": True,
             "max_price": 0,
             "objective": "socialengagement",
             "ad_object_type": "url",
@@ -281,16 +289,16 @@ class AdCreator:
             "ad_groups": nested_campaigns,  # ← актуальное имя поля (не "campaigns")
         }
 
-        # PRE-FLIGHT 1: минимум 100₽/день на КАЖДУЮ ГРУППУ (известный лимит VK).
-        # Раньше думали что это лимит кампании, но ошибка 'min_value' на
-        # budget_limit_day групп показала: VK проверяет каждую группу отдельно.
-        VK_MIN_GROUP_DAILY = 100  # рубли, минимум дневного бюджета группы
-        if daily_budget_rub_per_group < VK_MIN_GROUP_DAILY:
+        # PRE-FLIGHT: минимум 100₽/день на кампанию (подтверждено UI кабинета VK).
+        # Бюджет в CBO режиме общий, не на группу. Слишком маленькое значение —
+        # VK выдаст 'min_value' на budget_limit_day групп.
+        VK_MIN_CAMPAIGN_DAILY = 100  # рубли, минимум дневного бюджета кампании
+        if daily_budget_rub_per_group < VK_MIN_CAMPAIGN_DAILY:
             raise AdCreatorError(
-                f"Дневной бюджет группы ({daily_budget_rub_per_group}₽) "
-                f"меньше минимума VK ({VK_MIN_GROUP_DAILY}₽/группа). "
+                f"Дневной бюджет кампании ({daily_budget_rub_per_group}₽) "
+                f"меньше минимума VK ({VK_MIN_CAMPAIGN_DAILY}₽/день). "
                 f"Увеличь TEST_CAMPAIGN_BUDGET_RUB в Railway "
-                f"минимум до {VK_MIN_GROUP_DAILY}."
+                f"минимум до {VK_MIN_CAMPAIGN_DAILY}."
             )
 
         logger.info(
