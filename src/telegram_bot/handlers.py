@@ -66,7 +66,83 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
 
-async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+async def biba_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Запуск Бибы — разведчика VK Ads API.
+
+    Биба пройдёт по 36 справочным endpoints VK Ads и соберёт inventory:
+    интересы, регионы, существующие сегменты, пиксели, и т.д.
+    Результат — два markdown файла:
+    - REPORT.md — что откликнулось и что в нём
+    - PROPOSALS.md — гипотезы Бибы что ещё стоит проверить
+
+    Прогон занимает ~1-2 минуты. Прогресс шлётся в чат, файлы в конце.
+    """
+    from src.biba.explorer import explore
+    from src.vk_ads.auth import VKAdsAuthenticator
+
+    chat_id = update.effective_chat.id
+    await update.message.reply_text(
+        "👁 *БИБА выходит на разведку*\n\n"
+        "Опрашиваю 36 справочных endpoints VK Ads. "
+        "Сразу не лезу в твои кампании — только справочники.\n\n"
+        "Это займёт 1-2 минуты. Жди.",
+        parse_mode="Markdown",
+    )
+
+    try:
+        authenticator = VKAdsAuthenticator(
+            client_id=settings.vk_ads_oauth_client_id,
+            client_secret=settings.vk_ads_oauth_client_secret,
+        )
+        client = VKAdsClient(authenticator=authenticator)
+        report = await explore(client)
+
+        # Шлём REPORT.md как файл
+        from pathlib import Path
+        report_path = Path("docs/biba_findings/REPORT.md")
+        proposals_path = Path("docs/biba_findings/PROPOSALS.md")
+
+        # Краткая сводка в чат
+        await update.message.reply_text(
+            f"✅ *Биба вернулся из экспедиции*\n\n"
+            f"Endpoints проверено: {len(report.findings)}\n"
+            f"Откликнулись (200): {report.ok_count}\n"
+            f"Не найдены (404): {report.not_found_count}\n\n"
+            f"Шлю детальный рапорт файлом.",
+            parse_mode="Markdown",
+        )
+
+        # Файл рапорта
+        if report_path.exists():
+            with open(report_path, "rb") as f:
+                await context.bot.send_document(
+                    chat_id=chat_id,
+                    document=f,
+                    filename="biba_REPORT.md",
+                    caption="📄 Полный рапорт Бибы",
+                )
+
+        # Файл предложений
+        if proposals_path.exists():
+            with open(proposals_path, "rb") as f:
+                await context.bot.send_document(
+                    chat_id=chat_id,
+                    document=f,
+                    filename="biba_PROPOSALS.md",
+                    caption=(
+                        "💡 Что ещё Биба предлагает проверить.\n"
+                        "Скажи Claude в чате какие пункты одобряешь — "
+                        "он добавит их в следующий прогон."
+                    ),
+                )
+
+    except Exception as e:
+        logger.exception("Биба упал")
+        await update.message.reply_text(
+            f"❌ Биба упал в обморок:\n\n`{e}`\n\n"
+            f"Скажи Claude в чате — разберёмся.",
+            parse_mode="Markdown",
+        )
     await update.message.reply_text(
         "📋 Команды:\n\n"
         "/start — приветствие\n"
