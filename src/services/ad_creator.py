@@ -279,9 +279,13 @@ class AdCreator:
             # Подтверждено сравнением с golden_inspect_20865519.json:
             # ad_plan.budget_limit_day = 420.0 + budget_optimization_enabled=true,
             # ad_group.budget_limit_day = 420.0 (одинаковое!).
+            #
+            # ВАЖНО: budget_optimization_enabled — READ ONLY поле в API
+            # (подтверждено ошибкой VK 13.05.2026: read_only_field). VK сам
+            # включает CBO когда видит одинаковый budget_limit_day на кампании
+            # и группах. Не передаём это поле в payload.
             "budget_limit_day": daily_budget_rub_per_group,
             "budget_limit": None,
-            "budget_optimization_enabled": True,
             "max_price": 0,
             "objective": "socialengagement",
             "ad_object_type": "url",
