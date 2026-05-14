@@ -66,6 +66,28 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     )
 
 
+async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Список команд и подсказка как пользоваться photo-flow.
+
+    Восстановлено из коммита 6248da3. В коммите 32d534a (`feat(biba)`) я
+    случайно затёр `async def help_command(...):` строку — само тело
+    функции оказалось приклеено в конец `biba_command`, а импорт
+    `help_command` в `bot.py` остался — worker крашился на старте с
+    ImportError. Регрессионный тест см. в `tests/test_handlers_imports.py`.
+    """
+    await update.message.reply_text(
+        "📋 Команды:\n\n"
+        "/start — приветствие\n"
+        "/help — это сообщение\n"
+        "/status — реальный статус кабинета VK\n\n"
+        "📸 Прислать фото с подписью:\n"
+        "1. Подпись = тема рекламы (например: «молитвы за здравие в монастыре»)\n"
+        "2. Я сгенерирую через Claude 4 разных варианта заголовка+текста\n"
+        "3. Ты выбираешь лучший\n"
+        "4. Создаю тестовую кампанию: 5 возрастных групп × 200 ₽/день = 1000 ₽/день, 7 дней"
+    )
+
+
 async def biba_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Запуск Бибы — разведчика VK Ads API.
 
@@ -143,17 +165,6 @@ async def biba_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             f"Скажи Claude в чате — разберёмся.",
             parse_mode="Markdown",
         )
-    await update.message.reply_text(
-        "📋 Команды:\n\n"
-        "/start — приветствие\n"
-        "/help — это сообщение\n"
-        "/status — реальный статус кабинета VK\n\n"
-        "📸 Прислать фото с подписью:\n"
-        "1. Подпись = тема рекламы (например: «молитвы за здравие в монастыре»)\n"
-        "2. Я сгенерирую через Claude 4 разных варианта заголовка+текста\n"
-        "3. Ты выбираешь лучший\n"
-        "4. Создаю тестовую кампанию: 5 возрастных групп × 200 ₽/день = 1000 ₽/день, 7 дней"
-    )
 
 
 async def clean_tokens_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
