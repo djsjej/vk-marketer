@@ -82,6 +82,22 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- VK API (для агента-таргетолога, Phase 5) ---
+    # Service token зарегистрированного VK ID приложения 54593625 («Парсер»).
+    # Создан 14.05.2026 для прямого парсинга подписчиков и постов через
+    # api.vk.com — после того как выяснилось что у TargetHunter нет
+    # публичного API. Используется в src/targetolog/ (см. HANDOFF_2026_05_14).
+    # Ограничения: только публичные методы (groups.getMembers, wall.get,
+    # groups.getById, users.get), без user-методов (likes, friends,
+    # subscriptions). Rate limit 5 req/sec.
+    vk_api_service_token: str | None = Field(
+        None,
+        description=(
+            "Service token VK ID приложения 54593625 «Парсер». "
+            "Для прямого парсинга VK API в src/targetolog/."
+        ),
+    )
+
     @field_validator(
         "vk_ads_token",
         "vk_ads_oauth_client_id",
