@@ -12,6 +12,7 @@ from telegram.ext import (
 
 from src.config import settings
 from src.telegram_bot.handlers import (
+    agent_command,
     biba_command,
     clean_tokens_command,
     handle_photo,
@@ -74,6 +75,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("vk_orthodox", vk_orthodox_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("agent", agent_command, filters=owner_filter)
     )
     application.add_handler(
         CommandHandler("vk_audience", vk_audience_command, filters=owner_filter)

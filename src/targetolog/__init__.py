@@ -4,6 +4,7 @@ Phase 5 проекта vk-marketer. См. docs/HANDOFF_2026_05_14.md секци�
 «Дополнение от позднего вечера 14.05 — пересмотр Phase 5».
 """
 
+from src.targetolog.agent import AgentResponse, TargetologAgent
 from src.targetolog.vk_api_client import VKAPIClient, VKAPIError
 
-__all__ = ["VKAPIClient", "VKAPIError"]
+__all__ = ["VKAPIClient", "VKAPIError", "TargetologAgent", "AgentResponse"]

@@ -65,11 +65,15 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     keyboard = [
         [
+            KeyboardButton("🧠 Поговорить с агентом"),
+            KeyboardButton("🔥 Горячая аудитория"),
+        ],
+        [
             KeyboardButton("📊 Статус кабинета"),
             KeyboardButton("🔧 Проверить VK API"),
         ],
         [
-            KeyboardButton("🔥 Горячая аудитория"),
+            KeyboardButton("☦️ Православные сообщества"),
             KeyboardButton("👥 Парсить Верую"),
         ],
         [
@@ -83,10 +87,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     await update.message.reply_text(
         "🤖 *Я — твой VK-маркетолог.*\n\n"
-        "Главная кнопка — *🔥 Горячая аудитория*. По ней бот соберёт "
-        "подписчиков 8 крупных правосл. сообществ и найдёт тех, кто "
-        "в 2+ группах одновременно — это и есть горячая ЦА для рекламы.\n\n"
-        "Если нужно парсить другую группу — `/vk_parse <screen_name>`.",
+        "Главное: *🧠 Поговорить с агентом* — Claude в роли таргетолога, "
+        "помнит контекст, объясняет стратегию. Или сразу *🔥 Горячая "
+        "аудитория* — бот соберёт подписчиков 8 крупных правосл. сообществ "
+        "и найдёт тех кто в 2+ группах одновременно.",
         parse_mode="Markdown",
         reply_markup=markup,
     )
@@ -771,15 +775,22 @@ async def _create_campaign_from_pending(
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик текстовых сообщений.
 
-    Сначала проверяет — не нажатие ли это на ReplyKeyboard-кнопку меню.
-    Если да — запускает соответствующий handler с правильными аргументами.
-    Иначе — обычный ответ-плейсхолдер.
+    Порядок проверок:
+    1. Кнопка меню — выход из режима агента + запуск действия.
+    2. Режим агента активен — отправляем в Claude через TargetologAgent.
+       Слово «выйти» — выход из режима.
+    3. Обычное текстовое сообщение — плейсхолдер с подсказкой.
     """
     text = (update.message.text or "").strip()
     logger.info(f"Получен текст: '{text[:100]}'")
 
     # 1. Проверяем — это кнопка меню?
     if text in MENU_BUTTON_ROUTES:
+        # При нажатии кнопки меню — автоматический выход из режима агента
+        if context.user_data.get("in_agent_mode"):
+            context.user_data["in_agent_mode"] = False
+            context.user_data.pop("agent_history", None)
+
         action_type, action_value = MENU_BUTTON_ROUTES[text]
 
         if action_type == "command":
@@ -791,6 +802,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 "vk_audience": vk_audience_command,
                 "biba": biba_command,
                 "help": help_command,
+                "agent": agent_command,
             }
             handler = command_map.get(action_value)
             if handler:
@@ -808,10 +820,25 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await vk_parse_command(update, context)
             return
 
-    # 2. Не кнопка — обычное текстовое сообщение
+    # 2. Режим агента активен — все текстовые сообщения идут в Claude
+    if context.user_data.get("in_agent_mode"):
+        # Команды выхода из режима
+        if text.lower() in ("выйти", "выход", "exit", "стоп", "quit"):
+            context.user_data["in_agent_mode"] = False
+            context.user_data.pop("agent_history", None)
+            await update.message.reply_text(
+                "🧠 Вышел из режима агента. Меню снова работает как обычно."
+            )
+            return
+
+        await _agent_chat_turn(update, context, text)
+        return
+
+    # 3. Обычное текстовое сообщение
     await update.message.reply_text(
         "📝 Принято. Что можно делать:\n"
         "• `/menu` — меню с кнопками\n"
+        "• `/agent` — разговор с агентом-таргетологом 🧠\n"
         "• `/help` — все команды\n"
         "• Фото с подписью → 4 варианта от Claude → создание кампании",
         parse_mode="Markdown",
@@ -1131,11 +1158,15 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     keyboard = [
         [
+            KeyboardButton("🧠 Поговорить с агентом"),
+            KeyboardButton("🔥 Горячая аудитория"),
+        ],
+        [
             KeyboardButton("📊 Статус кабинета"),
             KeyboardButton("🔧 Проверить VK API"),
         ],
         [
-            KeyboardButton("🔥 Горячая аудитория"),
+            KeyboardButton("☦️ Православные сообщества"),
             KeyboardButton("👥 Парсить Верую"),
         ],
         [
@@ -1151,10 +1182,9 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await update.message.reply_text(
         "🎛 *Меню готово*\n\n"
-        "Кнопки внизу — нажимай. Каждая сразу запускает действие.\n\n"
-        "Если нужно другое ключевое слово или сообщество — введи команду вручную:\n"
-        "`/vk_search <твоё ключевое слово>`\n"
-        "`/vk_parse <screen_name> [число]`",
+        "Кнопки внизу — нажимай. Каждая сразу запускает действие. "
+        "🧠 для разговора с агентом в свободной форме. 🔥 для одношагового "
+        "сбора горячей аудитории.",
         parse_mode="Markdown",
         reply_markup=markup,
     )
@@ -1167,6 +1197,8 @@ MENU_BUTTON_ROUTES = {
     "🔧 Проверить VK API": ("command", "vk_check"),
     "🔥 Горячая аудитория": ("command", "vk_audience"),
     "👥 Парсить Верую": ("vk_parse", "pravoslavnie_hristiane 1000"),
+    "🧠 Поговорить с агентом": ("command", "agent"),
+    "☦️ Православные сообщества": ("command", "vk_orthodox"),
     "👁 Биба-разведчик": ("command", "biba"),
     "📋 Все команды": ("command", "help"),
 }
@@ -1387,3 +1419,77 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         text = text[:4000] + "\n\n_(обрезано)_"
 
     await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def agent_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Вход в режим разговора с агентом-таргетологом (Phase 5.2).
+
+    После /agent — все текстовые сообщения уходят напрямую к Claude
+    через src/targetolog/agent.py. Агент понимает контекст бизнеса
+    (pomolimsy, ЦА женщины 41-58, православная ниша), помнит диалог,
+    подсказывает что делать.
+
+    Выход из режима — команда /menu (или /start), либо текст «выйти».
+    """
+    context.user_data["in_agent_mode"] = True
+    context.user_data["agent_history"] = []  # начинаем диалог с чистого листа
+
+    await update.message.reply_text(
+        "🧠 *Включил режим разговора с таргетологом.*\n\n"
+        "Теперь пиши что хочешь — я отвечаю как эксперт, помню контекст "
+        "беседы, объясняю что могу и не могу. Действовать сам пока не "
+        "могу (Phase 5.2.5) — пока подсказываю какие кнопки/команды нажать тебе.\n\n"
+        "Чтобы выйти из режима — напиши «выйти» или нажми любую кнопку меню.",
+        parse_mode="Markdown",
+    )
+
+
+async def _agent_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    """Один turn разговора с агентом. Внутренний хелпер."""
+    from src.targetolog.agent import TargetologAgent
+
+    # Покажем «печатает...» в Telegram чтобы Vizit не думал что зависло
+    await update.message.chat.send_action(action="typing")
+
+    history = context.user_data.get("agent_history", [])
+
+    try:
+        agent = TargetologAgent()
+        response = await agent.chat(user_message=text, history=history)
+    except Exception as e:
+        logger.exception("Agent chat failed")
+        await update.message.reply_text(
+            f"❌ Агент не смог ответить: `{type(e).__name__}`. "
+            f"Попробуй ещё раз или выйди через «выйти».",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Сохраняем обновлённую историю для следующего turn
+    context.user_data["agent_history"] = response.updated_history
+
+    # Telegram-лимит 4096 символов — если ответ длиннее, разбиваем
+    text_to_send = response.text
+    if len(text_to_send) > 4000:
+        # Простое разбиение по абзацам, не идеальное но рабочее
+        chunks = []
+        current = ""
+        for para in text_to_send.split("\n\n"):
+            if len(current) + len(para) + 2 < 4000:
+                current += ("\n\n" if current else "") + para
+            else:
+                if current:
+                    chunks.append(current)
+                current = para
+        if current:
+            chunks.append(current)
+
+        for chunk in chunks:
+            await update.message.reply_text(chunk, parse_mode="Markdown")
+    else:
+        # Markdown может ломаться на нестандартных символах от Claude
+        # (звёздочки в неожиданных местах). Если падает — отправим как plain text.
+        try:
+            await update.message.reply_text(text_to_send, parse_mode="Markdown")
+        except Exception:
+            await update.message.reply_text(text_to_send)
