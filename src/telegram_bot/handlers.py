@@ -61,8 +61,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "Что умею:\n"
         "• Принимать фото + тему → Claude генерит 4 варианта текста, выбираешь лучший\n"
         "• Запускать тестовую кампанию с возрастным A/B сплитом\n"
-        "• Мониторить и автоотключать слабые объявления (Phase 4)\n\n"
-        "Команды: /help, /status"
+        "• Искать VK-сообщества по теме и парсить их подписчиков (Phase 5)\n\n"
+        "Удобнее всего — через `/menu` (кнопки).\n"
+        "Все команды — через /help.",
+        parse_mode="Markdown",
     )
 
 
@@ -77,11 +79,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     """
     await update.message.reply_text(
         "📋 Команды:\n\n"
+        "/menu — главное меню с кнопками 🎛\n"
         "/start — приветствие\n"
         "/help — это сообщение\n"
         "/status — реальный статус кабинета VK\n"
         "/biba — карта функционала кабинета VK Ads (REPORT.md + raw JSON в zip)\n"
-        "/vk_check [screen_name] — проверка VK API service token (Phase 5)\n\n"
+        "/vk_check [screen_name] — проверка VK API service token\n"
+        "/vk_search <ключ> — поиск VK-сообществ по теме (Phase 5)\n"
+        "/vk_parse <screen_name> [N] — парсинг подписчиков сообщества\n\n"
         "📸 Прислать фото с подписью:\n"
         "1. Подпись = тема рекламы (например: «молитвы за здравие в монастыре»)\n"
         "2. Я сгенерирую через Claude 4 разных варианта заголовка+текста\n"
@@ -828,3 +833,274 @@ async def vk_check_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         reply += f"\n_{description}_"
 
     await update.message.reply_text(reply, parse_mode="Markdown")
+
+
+async def vk_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Поиск VK-сообществ по ключевому слову (Phase 5).
+
+    Использование:
+        /vk_search православие
+        /vk_search молитва за здравие
+
+    Возвращает топ-20 сообществ по релевантности от VK (релевантность
+    обычно совпадает с размером — крупные первыми). Для каждого:
+    название, screen_name, число подписчиков, краткое описание.
+    """
+    from src.targetolog import VKAPIClient, VKAPIError
+
+    if not settings.vk_api_service_token:
+        await update.message.reply_text(
+            "⚠️ VK_API_SERVICE_TOKEN не настроен в Railway.",
+        )
+        return
+
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "Введи ключевую фразу:\n"
+            "`/vk_search православие`\n"
+            "`/vk_search молитва за здравие`\n"
+            "`/vk_search монастырь`",
+            parse_mode="Markdown",
+        )
+        return
+
+    query = " ".join(args)
+    await update.message.reply_text(
+        f"🔍 Ищу сообщества по запросу «{query}»...",
+    )
+
+    try:
+        async with VKAPIClient(service_token=settings.vk_api_service_token) as client:
+            groups = await client.groups_search(query, count=20, country=1)
+    except VKAPIError as e:
+        await update.message.reply_text(
+            f"❌ VK API ошибка {e.code}: {e.message}",
+        )
+        return
+    except Exception as e:
+        logger.exception("vk_search failed")
+        await update.message.reply_text(
+            f"❌ Ошибка: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    if not groups:
+        await update.message.reply_text(
+            f"Ничего не нашлось по запросу «{query}». Попробуй другие ключи.",
+        )
+        return
+
+    # Сортируем по числу подписчиков убывание — крупные первые
+    groups_sorted = sorted(
+        groups, key=lambda g: g.get("members_count", 0), reverse=True
+    )
+
+    lines = [f"📋 *Топ {len(groups_sorted)} сообществ по запросу «{query}»:*\n"]
+    for i, g in enumerate(groups_sorted, 1):
+        name = g.get("name", "?")
+        screen = g.get("screen_name", "?")
+        members = g.get("members_count", 0)
+        # Форматируем число с пробелами как разделителями тысяч
+        members_fmt = f"{members:,}".replace(",", " ")
+        lines.append(f"{i}. *{name}*\n   `{screen}` — {members_fmt} подписчиков")
+
+    text = "\n".join(lines)
+    # Telegram лимит 4096 символов на сообщение
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n_(обрезано)_"
+
+    text += (
+        "\n\nЧтобы распарсить подписчиков:\n"
+        "`/vk_parse <screen_name>` (например `/vk_parse pomolimsy`)"
+    )
+
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def vk_parse_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Парсинг подписчиков VK-сообщества (Phase 5).
+
+    Использование:
+        /vk_parse pomolimsy           — парсит всех подписчиков
+        /vk_parse pomolimsy 100       — парсит первые 100 (для теста)
+
+    На большие группы (>10k) уходит ~3-5 секунд каждые 1000 человек
+    из-за rate limit VK. Группа в 60k — около 15 секунд.
+    """
+    from src.targetolog import VKAPIClient, VKAPIError
+
+    if not settings.vk_api_service_token:
+        await update.message.reply_text(
+            "⚠️ VK_API_SERVICE_TOKEN не настроен в Railway.",
+        )
+        return
+
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "Использование:\n"
+            "`/vk_parse <screen_name или ID>` — все подписчики\n"
+            "`/vk_parse <screen_name> <число>` — только первые N\n\n"
+            "Примеры:\n"
+            "`/vk_parse pomolimsy 100` — первые 100 для теста\n"
+            "`/vk_parse pravoslavnie_hristiane 1000` — первая тысяча",
+            parse_mode="Markdown",
+        )
+        return
+
+    target = args[0].rstrip("/").split("/")[-1]
+    max_count = None
+    if len(args) >= 2:
+        try:
+            max_count = int(args[1])
+        except ValueError:
+            await update.message.reply_text(
+                f"Второй аргумент должен быть числом, не «{args[1]}»",
+            )
+            return
+
+    limit_text = f" (первые {max_count})" if max_count else " (все)"
+    await update.message.reply_text(
+        f"👥 Парсю подписчиков `{target}`{limit_text}... может занять до минуты на крупных группах.",
+        parse_mode="Markdown",
+    )
+
+    try:
+        async with VKAPIClient(service_token=settings.vk_api_service_token) as client:
+            # Сначала получим инфу о группе чтобы знать сколько всего
+            try:
+                group_info = await client.groups_get_by_id(target)
+                total_in_group = group_info.get("members_count", 0)
+                group_name = group_info.get("name", target)
+            except VKAPIError:
+                total_in_group = None
+                group_name = target
+
+            members = await client.groups_get_members(target, max_count=max_count)
+    except VKAPIError as e:
+        await update.message.reply_text(
+            f"❌ VK API ошибка {e.code}: {e.message}\n\n"
+            f"Если код 15 — сообщество закрытое, подписчики скрыты.",
+        )
+        return
+    except Exception as e:
+        logger.exception("vk_parse failed")
+        await update.message.reply_text(
+            f"❌ Ошибка: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Сводка результата
+    n = len(members)
+    reply = f"✅ *Парсинг завершён*\n\n"
+    reply += f"Сообщество: {group_name}\n"
+    if total_in_group:
+        total_fmt = f"{total_in_group:,}".replace(",", " ")
+        reply += f"Всего подписчиков: {total_fmt}\n"
+    reply += f"Собрано ID: {n:,}".replace(",", " ") + "\n\n"
+    reply += f"Первые 5 ID: {members[:5]}\n"
+    if n > 5:
+        reply += f"Последние 5 ID: {members[-5:]}\n\n"
+    reply += "_Готово к пересечениям и выгрузке в VK Ads (следующая итерация)._"
+
+    await update.message.reply_text(reply, parse_mode="Markdown")
+
+
+async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Главное меню бота с inline-кнопками — точка входа во все функции.
+
+    Появилось когда Vizit попросил «кнопки команд» — на iPhone неудобно
+    вводить команды с аргументами вручную. Кнопки делают навигацию проще.
+
+    Сейчас кнопки показывают подсказки как использовать команды.
+    В Phase 5.3 — заменим на пошаговые диалоги через callback_query.
+    """
+    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
+    keyboard = [
+        [
+            InlineKeyboardButton("🔍 Поиск сообществ", callback_data="menu_search"),
+            InlineKeyboardButton("👥 Парсить подписчиков", callback_data="menu_parse"),
+        ],
+        [
+            InlineKeyboardButton("📊 Статус кабинета", callback_data="menu_status"),
+            InlineKeyboardButton("🔧 Проверить VK API", callback_data="menu_vk_check"),
+        ],
+        [
+            InlineKeyboardButton("👁 Биба — карта VK Ads", callback_data="menu_biba"),
+            InlineKeyboardButton("📋 Все команды", callback_data="menu_help"),
+        ],
+    ]
+    markup = InlineKeyboardMarkup(keyboard)
+
+    await update.message.reply_text(
+        "🎛 *Главное меню*\n\n"
+        "Выбери действие — бот подскажет что ввести.",
+        parse_mode="Markdown",
+        reply_markup=markup,
+    )
+
+
+async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик нажатий на кнопки главного меню.
+
+    Сейчас просто показывает подсказку как использовать конкретную команду.
+    В будущем здесь будут пошаговые диалоги (например, после нажатия
+    «Поиск сообществ» бот спрашивает «введи ключевую фразу», ждёт ответ,
+    запускает поиск).
+    """
+    query = update.callback_query
+    await query.answer()  # убирает «часики» на кнопке
+
+    action = query.data
+    hint = ""
+
+    if action == "menu_search":
+        hint = (
+            "🔍 *Поиск сообществ*\n\n"
+            "Введи команду с ключевой фразой:\n"
+            "`/vk_search православие`\n"
+            "`/vk_search молитва за здравие`\n"
+            "`/vk_search монастырь`\n\n"
+            "Бот вернёт топ-20 сообществ с числом подписчиков."
+        )
+    elif action == "menu_parse":
+        hint = (
+            "👥 *Парсинг подписчиков*\n\n"
+            "Введи команду с именем сообщества:\n"
+            "`/vk_parse pomolimsy` — все подписчики\n"
+            "`/vk_parse pomolimsy 100` — первые 100 (для теста)\n\n"
+            "Получишь ID подписчиков, готовые для пересечений."
+        )
+    elif action == "menu_status":
+        hint = "Введи `/status` — увидишь баланс кабинета и активные кампании."
+    elif action == "menu_vk_check":
+        hint = (
+            "🔧 *Проверка VK API*\n\n"
+            "Введи `/vk_check` — бот проверит что service token работает "
+            "(запросит инфо о pomolimsy)."
+        )
+    elif action == "menu_biba":
+        hint = (
+            "👁 *Биба-разведчик*\n\n"
+            "Введи `/biba` — она опросит 36 endpoints VK Ads и пришлёт "
+            "карту функционала кабинета (1-2 минуты)."
+        )
+    elif action == "menu_help":
+        hint = (
+            "📋 *Все команды*\n\n"
+            "`/start` — приветствие\n"
+            "`/menu` — это меню\n"
+            "`/help` — подробнее\n"
+            "`/status` — кабинет\n"
+            "`/biba` — карта VK Ads\n"
+            "`/vk_check [screen_name]` — проверка VK API\n"
+            "`/vk_search <ключ>` — поиск сообществ\n"
+            "`/vk_parse <screen_name>` — парсинг подписчиков\n\n"
+            "📸 Фото с подписью → создание рекламной кампании."
+        )
+
+    await query.edit_message_text(hint, parse_mode="Markdown")

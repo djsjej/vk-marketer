@@ -212,3 +212,104 @@ class VKAPIClient:
             raise VKAPIError(100, f"Сообщество не найдено: {group_id}")
 
         return groups[0]
+
+    async def groups_search(
+        self,
+        query: str,
+        count: int = 30,
+        country: int = 1,
+    ) -> list[dict]:
+        """Поиск сообществ по ключевой фразе.
+
+        VK API возвращает результаты по умолчанию отсортированными по
+        релевантности, что обычно ставит крупные сообщества первыми.
+
+        Args:
+            query: ключевое слово ('православие', 'монастырь', 'молитва').
+            count: число результатов, max 1000 за запрос (VK сам обрежет).
+            country: ID страны фильтра (1 = Россия). Передать 0 для всех.
+
+        Returns:
+            Список словарей групп, каждый с полями id, name, screen_name,
+            members_count, description, photo_200, is_closed.
+
+        Raises:
+            VKAPIError: при ошибке от VK.
+        """
+        params: dict[str, Any] = {
+            "q": query,
+            "count": min(count, 1000),
+            "type": "group",  # только группы, без событий и пабликов
+            "fields": "members_count,description,photo_200,activity",
+        }
+        if country:
+            params["country"] = country
+
+        response = await self.call("groups.search", **params)
+        # response — это {"count": N, "items": [...]}
+        if not isinstance(response, dict) or "items" not in response:
+            raise VKAPIError(-1, f"Неожиданный формат ответа groups.search: {response}")
+        return response["items"]
+
+    async def groups_get_members(
+        self,
+        group_id: str | int,
+        max_count: int | None = None,
+        fields: str = "",
+    ) -> list[int | dict]:
+        """Парсинг ID подписчиков сообщества с автоматической пагинацией.
+
+        VK отдаёт по 1000 пользователей за запрос. Если в сообществе 60000
+        подписчиков — будет 60 запросов, при rate limit 4/sec это ~15 секунд.
+
+        Args:
+            group_id: numeric ID или screen_name сообщества.
+            max_count: ограничение общего числа (None = все доступные).
+                Полезно для тестового парсинга — взять первые 100.
+            fields: CSV дополнительных полей пользователей (например
+                'sex,bdate,city'). Если пусто — возвращаются только ID.
+
+        Returns:
+            Если fields пусто — список int (user IDs).
+            Если fields указан — список dict с user объектами.
+
+        Raises:
+            VKAPIError(15): сообщество закрытое, доступ запрещён.
+            VKAPIError(100): сообщество не найдено.
+        """
+        all_members: list[Any] = []
+        offset = 0
+        per_request = 1000  # VK максимум за запрос
+
+        while True:
+            params: dict[str, Any] = {
+                "group_id": str(group_id),
+                "count": per_request,
+                "offset": offset,
+            }
+            if fields:
+                params["fields"] = fields
+
+            response = await self.call("groups.getMembers", **params)
+            if not isinstance(response, dict) or "items" not in response:
+                raise VKAPIError(
+                    -1, f"Неожиданный формат ответа groups.getMembers: {response}"
+                )
+
+            items = response["items"]
+            total = response.get("count", 0)
+            all_members.extend(items)
+
+            # Прекращаем если: достигли max_count, или больше нет
+            # элементов, или собрали всех.
+            if max_count is not None and len(all_members) >= max_count:
+                all_members = all_members[:max_count]
+                break
+            if len(items) < per_request:
+                break  # последняя страница
+            if len(all_members) >= total:
+                break  # собрали всех по версии VK
+
+            offset += per_request
+
+        return all_members

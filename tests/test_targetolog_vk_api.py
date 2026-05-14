@@ -184,3 +184,142 @@ async def test_call_without_context_manager_raises():
     client = VKAPIClient(service_token="dummy")
     with pytest.raises(RuntimeError, match="async context manager"):
         await client.call("groups.getById", group_ids="x")
+
+
+# --- groups.search ---
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_groups_search_returns_items():
+    """groups.search возвращает items с группами."""
+    respx.post(f"{VK_API_BASE}/groups.search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "response": {
+                    "count": 3,
+                    "items": [
+                        {"id": 1, "name": "Верую Православие", "members_count": 700000},
+                        {"id": 2, "name": "Православие", "members_count": 80000},
+                        {"id": 3, "name": "Постная трапеза", "members_count": 90000},
+                    ],
+                }
+            },
+        )
+    )
+
+    async with VKAPIClient(service_token="dummy") as client:
+        groups = await client.groups_search("православие", count=3)
+
+    assert len(groups) == 3
+    assert groups[0]["name"] == "Верую Православие"
+    assert groups[0]["members_count"] == 700_000
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_groups_search_includes_required_params():
+    """В запросе должны быть q, count, type=group, fields, country."""
+    route = respx.post(f"{VK_API_BASE}/groups.search").mock(
+        return_value=httpx.Response(
+            200, json={"response": {"count": 0, "items": []}}
+        )
+    )
+
+    async with VKAPIClient(service_token="dummy") as client:
+        await client.groups_search("монастырь", count=20, country=1)
+
+    body = bytes(route.calls[0].request.read()).decode()
+    assert "q=" in body and "%D0%BC%D0%BE%D0%BD%D0%B0%D1%81%D1%82%D1%8B%D1%80%D1%8C" in body
+    assert "count=20" in body
+    assert "type=group" in body
+    assert "country=1" in body
+    # fields содержит members_count для сортировки на нашей стороне
+    assert "members_count" in body
+
+
+# --- groups.getMembers с пагинацией ---
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_groups_get_members_paginates_when_more_than_1000():
+    """Если в группе >1000 человек — клиент делает несколько запросов."""
+    # Имитируем сообщество с 2500 подписчиками — 3 запроса (1000+1000+500)
+    call_count = [0]
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        call_count[0] += 1
+        body = request.read().decode()
+        # Парсим offset из form-data
+        offset = 0
+        for part in body.split("&"):
+            if part.startswith("offset="):
+                offset = int(part.split("=")[1])
+
+        # Генерим уникальные ID для каждой страницы
+        if offset == 0:
+            items = list(range(1, 1001))  # 1..1000
+        elif offset == 1000:
+            items = list(range(1001, 2001))  # 1001..2000
+        elif offset == 2000:
+            items = list(range(2001, 2501))  # 2001..2500 (500 — последняя страница)
+        else:
+            items = []
+
+        return httpx.Response(
+            200, json={"response": {"count": 2500, "items": items}}
+        )
+
+    respx.post(f"{VK_API_BASE}/groups.getMembers").mock(side_effect=respond)
+
+    async with VKAPIClient(service_token="dummy", rate_limit_per_sec=100) as client:
+        members = await client.groups_get_members("pomolimsy")
+
+    assert call_count[0] == 3, f"Должно быть 3 запроса с пагинацией, было {call_count[0]}"
+    assert len(members) == 2500
+    assert members[0] == 1
+    assert members[-1] == 2500
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_groups_get_members_respects_max_count():
+    """max_count=100 → возвращает ровно 100 (хоть в группе и больше)."""
+    respx.post(f"{VK_API_BASE}/groups.getMembers").mock(
+        return_value=httpx.Response(
+            200,
+            json={"response": {"count": 5000, "items": list(range(1, 1001))}},
+        )
+    )
+
+    async with VKAPIClient(service_token="dummy", rate_limit_per_sec=100) as client:
+        members = await client.groups_get_members("pomolimsy", max_count=100)
+
+    assert len(members) == 100
+    assert members[0] == 1
+    assert members[-1] == 100
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_groups_get_members_raises_on_closed_group():
+    """Закрытое сообщество — VK возвращает error 15 (access denied)."""
+    respx.post(f"{VK_API_BASE}/groups.getMembers").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "error": {
+                    "error_code": 15,
+                    "error_msg": "Access denied: group members are hidden",
+                }
+            },
+        )
+    )
+
+    async with VKAPIClient(service_token="dummy") as client:
+        with pytest.raises(VKAPIError) as exc_info:
+            await client.groups_get_members("closed_group")
+
+    assert exc_info.value.code == 15

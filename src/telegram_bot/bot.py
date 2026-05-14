@@ -17,11 +17,15 @@ from src.telegram_bot.handlers import (
     handle_photo,
     handle_text,
     inspect_command,
+    menu_callback,
+    menu_command,
     on_callback,
     start_command,
     help_command,
     status_command,
     vk_check_command,
+    vk_parse_command,
+    vk_search_command,
 )
 
 logger = logging.getLogger(__name__)
@@ -60,6 +64,15 @@ def build_bot() -> Application:
     application.add_handler(
         CommandHandler("vk_check", vk_check_command, filters=owner_filter)
     )
+    application.add_handler(
+        CommandHandler("vk_search", vk_search_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("vk_parse", vk_parse_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("menu", menu_command, filters=owner_filter)
+    )
 
     # Сообщения
     application.add_handler(
@@ -69,7 +82,12 @@ def build_bot() -> Application:
         MessageHandler(filters.TEXT & ~filters.COMMAND & owner_filter, handle_text)
     )
 
-    # Inline-кнопки (подтверждение создания кампании)
+    # Inline-кнопки. ВАЖЕН ПОРЯДОК: pattern-обработчик menu_callback должен
+    # быть зарегистрирован раньше общего on_callback (без pattern), иначе
+    # тот перехватит все события включая наши menu_*.
+    application.add_handler(
+        CallbackQueryHandler(menu_callback, pattern=r"^menu_")
+    )
     application.add_handler(CallbackQueryHandler(on_callback))
 
     logger.info(f"Бот настроен, owner_id={settings.telegram_owner_id}")
