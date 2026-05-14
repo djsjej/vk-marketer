@@ -24,6 +24,7 @@ from src.telegram_bot.handlers import (
     help_command,
     status_command,
     vk_check_command,
+    vk_orthodox_command,
     vk_parse_command,
     vk_search_command,
 )
@@ -69,6 +70,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("vk_parse", vk_parse_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("vk_orthodox", vk_orthodox_command, filters=owner_filter)
     )
     application.add_handler(
         CommandHandler("menu", menu_command, filters=owner_filter)

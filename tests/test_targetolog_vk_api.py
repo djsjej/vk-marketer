@@ -323,3 +323,136 @@ async def test_groups_get_members_raises_on_closed_group():
             await client.groups_get_members("closed_group")
 
     assert exc_info.value.code == 15
+
+
+# --- find_orthodox_communities (расширенный поиск с фильтрацией) ---
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_find_orthodox_filters_blacklist():
+    """Сообщества с «сатан», «прикол», «католич» в названии/описании отсеиваются."""
+    # Все запросы groups.search мокаем одним списком
+    respx.post(f"{VK_API_BASE}/groups.search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "response": {
+                    "count": 5,
+                    "items": [
+                        # Должны пройти
+                        {"id": 1, "name": "Православие.ру", "description": "Молитвы за здравие", "members_count": 50000},
+                        {"id": 2, "name": "Дивеевский монастырь", "description": "Святыни Серафима", "members_count": 30000},
+                        # Должны отфильтроваться
+                        {"id": 3, "name": "Церковь Сатаны", "description": "Чернокнижие", "members_count": 5000},
+                        {"id": 4, "name": "Православный прикол", "description": "Юмор о церкви", "members_count": 8000},
+                        {"id": 5, "name": "Католическая церковь", "description": "Папа Римский", "members_count": 20000},
+                    ],
+                }
+            },
+        )
+    )
+
+    async with VKAPIClient(service_token="dummy", rate_limit_per_sec=100) as client:
+        groups = await client.find_orthodox_communities(
+            queries=["православие"], min_members=500
+        )
+
+    ids = [g["id"] for g in groups]
+    assert 1 in ids, "Православие.ру должна остаться"
+    assert 2 in ids, "Дивеевский монастырь должен остаться"
+    assert 3 not in ids, "Сатанизм должен быть отфильтрован"
+    assert 4 not in ids, "Приколы должны быть отфильтрованы"
+    assert 5 not in ids, "Католическая церковь должна быть отфильтрована"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_find_orthodox_dedups_across_queries():
+    """Одна и та же группа из разных поисков — один раз в результате."""
+    call_count = [0]
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        call_count[0] += 1
+        # Все 6 дефолтных запросов возвращают одну и ту же группу
+        return httpx.Response(
+            200,
+            json={
+                "response": {
+                    "count": 1,
+                    "items": [
+                        {"id": 100, "name": "Господу Помолимся", "description": "Поминовение", "members_count": 62000}
+                    ],
+                }
+            },
+        )
+
+    respx.post(f"{VK_API_BASE}/groups.search").mock(side_effect=respond)
+
+    async with VKAPIClient(service_token="dummy", rate_limit_per_sec=100) as client:
+        groups = await client.find_orthodox_communities()
+
+    assert call_count[0] == 6, "По умолчанию 6 параллельных запросов"
+    assert len(groups) == 1, "Дедуп — одна группа в результате"
+    assert groups[0]["id"] == 100
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_find_orthodox_filters_small_groups():
+    """Группы с < min_members подписчиков отсеиваются."""
+    respx.post(f"{VK_API_BASE}/groups.search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "response": {
+                    "count": 3,
+                    "items": [
+                        {"id": 1, "name": "Большой монастырь", "members_count": 50000, "description": ""},
+                        {"id": 2, "name": "Средний приход", "members_count": 5000, "description": ""},
+                        {"id": 3, "name": "Малая часовня", "members_count": 100, "description": ""},
+                    ],
+                }
+            },
+        )
+    )
+
+    async with VKAPIClient(service_token="dummy", rate_limit_per_sec=100) as client:
+        groups = await client.find_orthodox_communities(
+            queries=["православие"], min_members=1000
+        )
+
+    ids = [g["id"] for g in groups]
+    assert 1 in ids
+    assert 2 in ids
+    assert 3 not in ids, "Группа с 100 подписчиков должна быть отфильтрована"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_find_orthodox_sorts_by_members_desc():
+    """Результат отсортирован по числу подписчиков убывание."""
+    respx.post(f"{VK_API_BASE}/groups.search").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "response": {
+                    "count": 3,
+                    "items": [
+                        {"id": 1, "name": "Малый", "members_count": 5000, "description": ""},
+                        {"id": 2, "name": "Огромный", "members_count": 700000, "description": ""},
+                        {"id": 3, "name": "Средний", "members_count": 80000, "description": ""},
+                    ],
+                }
+            },
+        )
+    )
+
+    async with VKAPIClient(service_token="dummy", rate_limit_per_sec=100) as client:
+        groups = await client.find_orthodox_communities(
+            queries=["x"], min_members=500
+        )
+
+    assert groups[0]["id"] == 2  # Огромный — первый
+    assert groups[1]["id"] == 3  # Средний
+    assert groups[2]["id"] == 1  # Малый

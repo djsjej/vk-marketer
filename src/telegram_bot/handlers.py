@@ -69,12 +69,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             KeyboardButton("🔧 Проверить VK API"),
         ],
         [
-            KeyboardButton("🔍 Поиск: православие"),
-            KeyboardButton("🔍 Поиск: монастырь"),
+            KeyboardButton("☦️ Православные сообщества"),
+            KeyboardButton("👥 Парсить pomolimsy"),
         ],
         [
-            KeyboardButton("🔍 Поиск: молитва"),
-            KeyboardButton("👥 Парсить pomolimsy"),
+            KeyboardButton("🔍 Поиск: православие"),
+            KeyboardButton("🔍 Поиск: монастырь"),
         ],
         [
             KeyboardButton("👁 Биба-разведчик"),
@@ -790,6 +790,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             command_map = {
                 "status": status_command,
                 "vk_check": vk_check_command,
+                "vk_orthodox": vk_orthodox_command,
                 "biba": biba_command,
                 "help": help_command,
             }
@@ -937,7 +938,7 @@ async def vk_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     try:
         async with VKAPIClient(service_token=settings.vk_api_service_token) as client:
-            groups = await client.groups_search(query, count=20, country=1)
+            groups = await client.groups_search(query, count=30, country=1)
     except VKAPIError as e:
         await update.message.reply_text(
             f"❌ VK API ошибка {e.code}: {e.message}",
@@ -957,22 +958,64 @@ async def vk_search_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
         return
 
-    # Сортируем по числу подписчиков убывание — крупные первые
-    groups_sorted = sorted(
-        groups, key=lambda g: g.get("members_count", 0), reverse=True
+    found_total = len(groups)
+
+    # 1. Эвристическая фильтрация — отсеиваем явный треш (сатанинское,
+    # юмор, чужие конфессии, оккультное). Быстро.
+    from src.targetolog.orthodox_filter import (
+        claude_filter_orthodox,
+        quick_filter_obviously_bad,
     )
 
-    lines = [f"📋 *Топ {len(groups_sorted)} сообществ по запросу «{query}»:*\n"]
-    for i, g in enumerate(groups_sorted, 1):
+    after_quick = [g for g in groups if quick_filter_obviously_bad(g)]
+
+    await update.message.reply_text(
+        f"📊 Нашёл {found_total} сообществ. После быстрого фильтра "
+        f"осталось {len(after_quick)}.\n\n"
+        f"Теперь Claude проверит каждое детально по описанию (несколько секунд)...",
+    )
+
+    # 2. Claude-фильтр — каждое сообщество проверяется по названию и описанию.
+    # Это исключает околорелигиозный треш, секты, чужие конфессии.
+    try:
+        orthodox_only = await claude_filter_orthodox(after_quick)
+    except Exception as e:
+        logger.exception("claude_filter_orthodox failed")
+        # Fail-safe — если фильтр сломался, показываем что есть после quick
+        orthodox_only = after_quick
+
+    if not orthodox_only:
+        await update.message.reply_text(
+            f"После фильтрации ничего не осталось — VK по запросу «{query}» "
+            f"не вернул реально православных сообществ. Попробуй другой ключ "
+            f"(например `молитва`, `иконы`, `святые`, конкретный святой).",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Сортируем итог по числу подписчиков убывание — крупные первые
+    orthodox_sorted = sorted(
+        orthodox_only, key=lambda g: g.get("members_count", 0), reverse=True
+    )
+
+    lines = [
+        f"☦️ *Православные сообщества по запросу «{query}»*",
+        f"_({found_total} найдено → {len(after_quick)} после quick → "
+        f"{len(orthodox_sorted)} после Claude)_\n",
+    ]
+    for i, g in enumerate(orthodox_sorted, 1):
         name = g.get("name", "?")
         screen = g.get("screen_name", "?")
         members = g.get("members_count", 0)
-        # Форматируем число с пробелами как разделителями тысяч
         members_fmt = f"{members:,}".replace(",", " ")
-        lines.append(f"{i}. *{name}*\n   `{screen}` — {members_fmt} подписчиков")
+        reason = g.get("_orthodox_reason", "")
+        line = f"{i}. *{name}*\n   `{screen}` — {members_fmt} подп."
+        if reason:
+            line += f"\n   _{reason}_"
+        lines.append(line)
 
     text = "\n".join(lines)
-    # Telegram лимит 4096 символов на сообщение
+    # Telegram лимит 4096 символов на сообщение — обрезаем если надо
     if len(text) > 4000:
         text = text[:4000] + "\n\n_(обрезано)_"
 
@@ -1094,12 +1137,12 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             KeyboardButton("🔧 Проверить VK API"),
         ],
         [
-            KeyboardButton("🔍 Поиск: православие"),
-            KeyboardButton("🔍 Поиск: монастырь"),
+            KeyboardButton("☦️ Православные сообщества"),
+            KeyboardButton("👥 Парсить pomolimsy"),
         ],
         [
-            KeyboardButton("🔍 Поиск: молитва"),
-            KeyboardButton("👥 Парсить pomolimsy"),
+            KeyboardButton("🔍 Поиск: православие"),
+            KeyboardButton("🔍 Поиск: монастырь"),
         ],
         [
             KeyboardButton("👁 Биба-разведчик"),
@@ -1128,6 +1171,7 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 MENU_BUTTON_ROUTES = {
     "📊 Статус кабинета": ("command", "status"),
     "🔧 Проверить VK API": ("command", "vk_check"),
+    "☦️ Православные сообщества": ("command", "vk_orthodox"),
     "🔍 Поиск: православие": ("vk_search", "православие"),
     "🔍 Поиск: монастырь": ("vk_search", "монастырь"),
     "🔍 Поиск: молитва": ("vk_search", "молитва"),
@@ -1146,3 +1190,77 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     query = update.callback_query
     if query:
         await query.answer()
+
+
+async def vk_orthodox_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Расширенный поиск ПРАВОСЛАВНЫХ сообществ с фильтрацией мусора.
+
+    Phase 5.1 — Vizit указал что обычный поиск по «монастырь» возвращает
+    приколы, сатанистов, католиков. Нужна предфильтрация.
+
+    Параллельно ищет по 6 ключам («православная церковь», «православный
+    монастырь», «православный собор», «православная часовня»,
+    «православная икона», «православные молитвы»), дедупит, выкидывает
+    группы со стоп-словами и мелкие.
+    """
+    from src.targetolog import VKAPIClient, VKAPIError
+
+    if not settings.vk_api_service_token:
+        await update.message.reply_text(
+            "⚠️ VK_API_SERVICE_TOKEN не настроен в Railway.",
+        )
+        return
+
+    await update.message.reply_text(
+        "☦️ Ищу православные сообщества...\n\n"
+        "Запускаю 6 параллельных поисков (церкви, монастыри, соборы, "
+        "часовни, иконы, молитвы), отсекаю приколы/сатанистов/другие "
+        "конфессии. Займёт секунд 5-10.",
+    )
+
+    try:
+        async with VKAPIClient(service_token=settings.vk_api_service_token) as client:
+            groups = await client.find_orthodox_communities(min_members=500)
+    except VKAPIError as e:
+        await update.message.reply_text(
+            f"❌ VK API ошибка {e.code}: {e.message}",
+        )
+        return
+    except Exception as e:
+        logger.exception("vk_orthodox failed")
+        await update.message.reply_text(
+            f"❌ Ошибка: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    if not groups:
+        await update.message.reply_text(
+            "Ничего не нашлось. Это странно — обычно VK что-то возвращает. "
+            "Возможно проблема с токеном или сетью.",
+        )
+        return
+
+    # Берём топ-25 чтобы не разорвать Telegram-лимит на сообщение (4096 символов)
+    top = groups[:25]
+
+    lines = [f"☦️ *Найдено {len(groups)} православных сообществ. Топ-{len(top)}:*\n"]
+    for i, g in enumerate(top, 1):
+        name = g.get("name", "?")
+        screen = g.get("screen_name", "?")
+        members = g.get("members_count", 0)
+        members_fmt = f"{members:,}".replace(",", " ")
+        lines.append(f"{i}. *{name}*\n   `{screen}` — {members_fmt} подписчиков")
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n_(обрезано)_"
+
+    text += (
+        "\n\n⚠️ *Глазами проверь* — фильтр чистит явный мусор (приколы, "
+        "сатанистов, другие конфессии), но всё равно проскользнуть может. "
+        "Когда отметишь нужные — пиши `/vk_parse <screen_name> 1000` "
+        "по каждому, я соберу подписчиков."
+    )
+
+    await update.message.reply_text(text, parse_mode="Markdown")
