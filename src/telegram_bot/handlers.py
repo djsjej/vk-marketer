@@ -1493,3 +1493,5 @@ async def _agent_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, t
             await update.message.reply_text(text_to_send, parse_mode="Markdown")
         except Exception:
             await update.message.reply_text(text_to_send)
+
+
