@@ -246,15 +246,19 @@ class AdCreator:
             # часть аудитории.
             age_list = [0] + list(range(age_from, age_to + 1))
             group_name = f"{age_from}-{age_to}"
-            # Базовые таргетинги для всех групп. interests_soc_dem [27137] =
-            # «Духовный рост и самовыражение» из targetings_tree.json
-            # (единственная категория VK Ads близкая к нашей нише —
-            # «Религии», «Православие» как интерес в VK не размечается).
+            # Базовые таргетинги для всех групп. interests_soc_dem — OR
+            # между ID: пользователь подходит если у него ХОТЯ БЫ ОДИН
+            # из сигналов. ID из targetings_tree.json от Бибы.
+            # Между полями (sex × age × ...) — AND, сужение даёт там.
             ad_group_targetings: dict = {
                 "geo": {"regions": geo_regions},
                 "sex": sex,
                 "age": {"age_list": age_list},
-                "interests_soc_dem": [27137],
+                "interests_soc_dem": [
+                    27137,  # Духовный рост и самовыражение — главный сигнал
+                    10186,  # Женаты, замужем — наша ЦА
+                    12920,  # Есть дети в семье — молятся за детей
+                ],
                 # ВАЖНО: НЕ передаём `pads` — auto-mode сам подбирает
                 # площадки под package_id. При явных pads VK переходит в
                 # manual-mode и требует patterns в settings package.
@@ -528,16 +532,22 @@ class AdCreator:
             group_name = f"{age_from}-{age_to}"
             age_list = list(range(age_from, age_to + 1))
 
-            # Базовые таргетинги. interests_soc_dem [27137] = «Духовный рост
-            # и самовыражение» из targetings_tree.json — единственная
-            # релевантная категория VK Ads (прямой «Православие» там нет).
+            # Базовые таргетинги. interests_soc_dem — OR-логика между ID:
+            # пользователь попадает в аудиторию если у него ХОТЯ БЫ ОДИН
+            # из этих сигналов. Между разными полями (sex × age × ...) —
+            # AND-логика. Поэтому расширяем сигналы здесь, а сужение даёт
+            # пол/возраст/гео. ID взяты из targetings_tree.json от Бибы.
             ad_group_targetings: dict = {
                 "geo": {"regions": [188]},  # 188 = Россия
                 "sex": ["female"],
                 # age_list начинается с 0 (по официальному гайду VK Ads):
                 # 0 = показывать тем, чей возраст не определён
                 "age": {"age_list": [0] + age_list},
-                "interests_soc_dem": [27137],
+                "interests_soc_dem": [
+                    27137,  # Духовный рост и самовыражение — главный сигнал
+                    10186,  # Женаты, замужем — наша ЦА (женщины 41-58)
+                    12920,  # Есть дети в семье — молятся за детей
+                ],
             }
             if audience_segments:
                 ad_group_targetings["segments"] = audience_segments

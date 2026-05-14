@@ -139,9 +139,12 @@ async def test_template_flow_targetings_include_female_and_dukhovny_rost(monkeyp
     assert targetings["sex"] == ["female"], (
         f"sex должен быть только female (бизнес-модель — ЦА женщины), получен {targetings['sex']}"
     )
-    assert targetings["interests_soc_dem"] == [27137], (
-        f"interests_soc_dem должно быть [27137] (Духовный рост), получено "
-        f"{targetings.get('interests_soc_dem')}. ID взят из targetings_tree.json."
+    # 3 ID в OR: Духовный рост (27137) + Замужем (10186) + Есть дети в семье (12920).
+    # Захват более широкой аудитории для oCPM-обучения VK.
+    assert targetings["interests_soc_dem"] == [27137, 10186, 12920], (
+        f"interests_soc_dem должно быть [27137, 10186, 12920] "
+        f"(Духовный рост + Замужем + С детьми), получено "
+        f"{targetings.get('interests_soc_dem')}. ID из targetings_tree.json."
     )
 
 
