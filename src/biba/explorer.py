@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -346,3 +347,34 @@ async def explore(client: VKAdsClient) -> ExpeditionReport:
     print(f"   См. docs/biba_findings/PROPOSALS.md")
 
     return report
+
+
+def create_findings_archive(
+    findings_dir: Path,
+    archive_base: Path | None = None,
+) -> Path:
+    """Пакует все файлы из findings_dir в ZIP для отправки Vizit'у в Telegram.
+
+    Зачем это нужно: REPORT.md обрезает sample каждого endpoint до 1500
+    символов, чтобы не перегружать Markdown. Но Claude в чате потом нужно
+    разобрать ПОЛНЫЕ ответы (например, targetings_tree.json — это всё дерево
+    интересов VK Ads, ~100к символов). FS на Railway эфемерный, рестарт
+    воркера — данные пропадают. Поэтому пакуем в ZIP и шлём в Telegram —
+    Vizit пересылает Claude'у, тот распаковывает и читает.
+
+    Args:
+        findings_dir: директория с biba_findings (REPORT.md, PROPOSALS.md,
+            и 36 raw JSON-файлов).
+        archive_base: путь к будущему ZIP БЕЗ расширения. По умолчанию
+            /tmp/biba_findings (рекомендуется для контейнера Railway —
+            /tmp обычно writable).
+
+    Returns:
+        Путь к созданному ZIP-файлу (с расширением .zip).
+    """
+    if archive_base is None:
+        archive_base = Path("/tmp/biba_findings")
+    archive = shutil.make_archive(
+        str(archive_base), "zip", root_dir=str(findings_dir)
+    )
+    return Path(archive)

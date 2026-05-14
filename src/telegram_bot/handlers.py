@@ -158,6 +158,33 @@ async def biba_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
                     ),
                 )
 
+        # ZIP со ВСЕМИ raw JSON-файлами — для разбора Claude'ом в чате.
+        # REPORT.md обрезает sample каждого endpoint до 1500 символов
+        # (иначе Markdown становится нечитаемым на телефоне), но Claude'у
+        # нужны полные данные — особенно targetings_tree.json для интересов.
+        try:
+            from src.biba.explorer import create_findings_archive
+            archive_path = create_findings_archive(Path("docs/biba_findings"))
+            with open(archive_path, "rb") as f:
+                await context.bot.send_document(
+                    chat_id=chat_id,
+                    document=f,
+                    filename="biba_findings.zip",
+                    caption=(
+                        "📦 Полные raw JSON всех endpoints.\n"
+                        "Перешли Claude'у в чате — он распакует и достанет "
+                        "из targetings_tree.json ID интересов для православной "
+                        "ниши (Религия, Православие, Благотворительность)."
+                    ),
+                )
+        except Exception as zip_err:
+            logger.exception("Не смог собрать архив biba_findings")
+            await update.message.reply_text(
+                f"⚠️ Не смог собрать ZIP с raw JSON: `{zip_err}`\n\n"
+                f"REPORT.md и PROPOSALS.md ушли — для базовых задач хватит.",
+                parse_mode="Markdown",
+            )
+
     except Exception as e:
         logger.exception("Биба упал")
         await update.message.reply_text(
