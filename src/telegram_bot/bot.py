@@ -21,6 +21,7 @@ from src.telegram_bot.handlers import (
     start_command,
     help_command,
     status_command,
+    vk_check_command,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("biba", biba_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("vk_check", vk_check_command, filters=owner_filter)
     )
 
     # Сообщения

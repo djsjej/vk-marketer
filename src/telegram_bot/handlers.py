@@ -79,7 +79,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "📋 Команды:\n\n"
         "/start — приветствие\n"
         "/help — это сообщение\n"
-        "/status — реальный статус кабинета VK\n\n"
+        "/status — реальный статус кабинета VK\n"
+        "/biba — карта функционала кабинета VK Ads (REPORT.md + raw JSON в zip)\n"
+        "/vk_check [screen_name] — проверка VK API service token (Phase 5)\n\n"
         "📸 Прислать фото с подписью:\n"
         "1. Подпись = тема рекламы (например: «молитвы за здравие в монастыре»)\n"
         "2. Я сгенерирую через Claude 4 разных варианта заголовка+текста\n"
@@ -745,3 +747,84 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         "• /status — статус кабинета\n"
         "• Фото с подписью → 4 варианта от Claude → выбор → создание кампании"
     )
+
+
+async def vk_check_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Проверка VK API service token — Phase 5 первая итерация.
+
+    Использование:
+        /vk_check                — запрашивает инфу о vk.com/pomolimsy
+        /vk_check pomolimsy      — то же явно
+        /vk_check 216409501      — по числовому ID
+        /vk_check orthodox_woman — любое публичное сообщество
+
+    Проверяет что:
+    - Service token из VK_API_SERVICE_TOKEN в Railway env работает
+    - VK API клиент в src/targetolog/ корректно общается с api.vk.com
+    - У токена достаточно прав на метод groups.getById
+
+    Если работает — Phase 5 готов к расширению (groups.getMembers,
+    парсинг подписчиков, пересечения, etc.).
+    """
+    from src.targetolog import VKAPIClient, VKAPIError
+
+    if not settings.vk_api_service_token:
+        await update.message.reply_text(
+            "⚠️ VK API service token не настроен.\n\n"
+            "Положи `VK_API_SERVICE_TOKEN` в Railway → Variables и перезапусти.",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Парсим аргумент — это может быть screen_name, числовой ID, или URL.
+    # URL вида https://vk.com/pomolimsy чистим до последнего сегмента.
+    args = context.args or []
+    raw_target = args[0] if args else "pomolimsy"
+    target = raw_target.rstrip("/").split("/")[-1]
+
+    await update.message.reply_text(
+        f"🔍 Проверяю VK API — запрашиваю инфо о сообществе `{target}`...",
+        parse_mode="Markdown",
+    )
+
+    try:
+        async with VKAPIClient(service_token=settings.vk_api_service_token) as client:
+            group = await client.groups_get_by_id(target)
+    except VKAPIError as e:
+        await update.message.reply_text(
+            f"❌ VK API ошибка {e.code}: {e.message}\n\n"
+            f"Возможные причины:\n"
+            f"• Сообщество не существует (`{target}`)\n"
+            f"• Сообщество закрытое (нужен user-token, не service)\n"
+            f"• Токен невалидный или истёк",
+        )
+        return
+    except Exception as e:
+        logger.exception("VK API check failed")
+        await update.message.reply_text(
+            f"❌ Неожиданная ошибка: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Успех — собираем красивый ответ
+    is_closed_map = {0: "открытое", 1: "закрытое", 2: "частное"}
+    is_closed_text = is_closed_map.get(group.get("is_closed", 0), "?")
+
+    description = group.get("description") or ""
+    # Обрезаем длинное описание для Telegram
+    if len(description) > 200:
+        description = description[:200] + "..."
+
+    reply = (
+        f"✅ *VK API работает*\n\n"
+        f"*Сообщество:* {group.get('name', '?')}\n"
+        f"*ID:* `{group.get('id', '?')}`\n"
+        f"*Screen name:* `{group.get('screen_name', '?')}`\n"
+        f"*Подписчиков:* {group.get('members_count', '?'):,}\n".replace(",", " ")
+        + f"*Тип:* {is_closed_text}\n"
+    )
+    if description:
+        reply += f"\n_{description}_"
+
+    await update.message.reply_text(reply, parse_mode="Markdown")
