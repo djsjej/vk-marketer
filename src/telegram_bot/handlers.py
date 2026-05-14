@@ -69,12 +69,8 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             KeyboardButton("🔧 Проверить VK API"),
         ],
         [
-            KeyboardButton("☦️ Православные сообщества"),
-            KeyboardButton("👥 Парсить pomolimsy"),
-        ],
-        [
-            KeyboardButton("🔍 Поиск: православие"),
-            KeyboardButton("🔍 Поиск: монастырь"),
+            KeyboardButton("🔥 Горячая аудитория"),
+            KeyboardButton("👥 Парсить Верую"),
         ],
         [
             KeyboardButton("👁 Биба-разведчик"),
@@ -87,9 +83,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     await update.message.reply_text(
         "🤖 *Я — твой VK-маркетолог.*\n\n"
-        "Жми кнопки внизу — они сразу запускают действие. "
-        "Если нужен другой ключ поиска или сообщество — вводи команду "
-        "вручную через `/vk_search` или `/vk_parse`.",
+        "Главная кнопка — *🔥 Горячая аудитория*. По ней бот соберёт "
+        "подписчиков 8 крупных правосл. сообществ и найдёт тех, кто "
+        "в 2+ группах одновременно — это и есть горячая ЦА для рекламы.\n\n"
+        "Если нужно парсить другую группу — `/vk_parse <screen_name>`.",
         parse_mode="Markdown",
         reply_markup=markup,
     )
@@ -791,6 +788,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 "status": status_command,
                 "vk_check": vk_check_command,
                 "vk_orthodox": vk_orthodox_command,
+                "vk_audience": vk_audience_command,
                 "biba": biba_command,
                 "help": help_command,
             }
@@ -1137,12 +1135,8 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             KeyboardButton("🔧 Проверить VK API"),
         ],
         [
-            KeyboardButton("☦️ Православные сообщества"),
-            KeyboardButton("👥 Парсить pomolimsy"),
-        ],
-        [
-            KeyboardButton("🔍 Поиск: православие"),
-            KeyboardButton("🔍 Поиск: монастырь"),
+            KeyboardButton("🔥 Горячая аудитория"),
+            KeyboardButton("👥 Парсить Верую"),
         ],
         [
             KeyboardButton("👁 Биба-разведчик"),
@@ -1171,11 +1165,8 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 MENU_BUTTON_ROUTES = {
     "📊 Статус кабинета": ("command", "status"),
     "🔧 Проверить VK API": ("command", "vk_check"),
-    "☦️ Православные сообщества": ("command", "vk_orthodox"),
-    "🔍 Поиск: православие": ("vk_search", "православие"),
-    "🔍 Поиск: монастырь": ("vk_search", "монастырь"),
-    "🔍 Поиск: молитва": ("vk_search", "молитва"),
-    "👥 Парсить pomolimsy": ("vk_parse", "pomolimsy 100"),
+    "🔥 Горячая аудитория": ("command", "vk_audience"),
+    "👥 Парсить Верую": ("vk_parse", "pravoslavnie_hristiane 1000"),
     "👁 Биба-разведчик": ("command", "biba"),
     "📋 Все команды": ("command", "help"),
 }
@@ -1262,5 +1253,137 @@ async def vk_orthodox_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         "Когда отметишь нужные — пиши `/vk_parse <screen_name> 1000` "
         "по каждому, я соберу подписчиков."
     )
+
+    await update.message.reply_text(text, parse_mode="Markdown")
+
+
+async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Сбор горячей православной аудитории — Phase 5.2.
+
+    Запускает пайплайн:
+    1. Парсит подписчиков 8 крупных открытых правосл. сообществ из
+       захардкоженного списка (orthodox_seed.py)
+    2. Считает пересечения — кто состоит в 2+ группах одновременно
+    3. Показывает Vizit'у статистику и распределение
+
+    Опциональный аргумент:
+        /vk_audience           — парсит первые 5000 с каждой (тест-режим)
+        /vk_audience full      — парсит ВСЕХ (может занять 15-30 минут)
+        /vk_audience 1000      — парсит первые 1000 с каждой
+
+    На следующем шаге (Phase 5.3) — выгрузка hot_users как CSV-сегмент
+    в VK Ads через API кабинета. Сейчас только показ цифр.
+    """
+    from src.targetolog import VKAPIClient, VKAPIError
+    from src.targetolog.intersections import find_intersections, parse_groups_parallel
+    from src.targetolog.orthodox_seed import (
+        ORTHODOX_COMMUNITIES_SEED,
+        get_seed_screen_names,
+    )
+
+    if not settings.vk_api_service_token:
+        await update.message.reply_text(
+            "⚠️ VK_API_SERVICE_TOKEN не настроен в Railway.",
+        )
+        return
+
+    # Парсинг аргументов
+    args = context.args or []
+    max_per_group: int | None = 5000  # дефолт — тест-режим
+    if args:
+        if args[0].lower() == "full":
+            max_per_group = None
+        else:
+            try:
+                max_per_group = int(args[0])
+            except ValueError:
+                await update.message.reply_text(
+                    f"Аргумент должен быть числом или 'full', не «{args[0]}»",
+                )
+                return
+
+    seed_count = len(ORTHODOX_COMMUNITIES_SEED)
+    mode_text = "все подписчики" if max_per_group is None else f"первые {max_per_group}"
+
+    # Грубая оценка времени
+    if max_per_group is None:
+        est_seconds = seed_count * 60  # ~60 сек/группа в среднем при rate limit
+        time_text = f"~{est_seconds // 60} минут"
+    else:
+        # 4 req/sec, по 1000 в запросе, + 1 req на getById
+        reqs_per_group = (max_per_group + 999) // 1000 + 1
+        est_seconds = (seed_count * reqs_per_group) / 4
+        time_text = f"~{int(est_seconds)} секунд"
+
+    await update.message.reply_text(
+        f"☦️ *Сбор горячей аудитории*\n\n"
+        f"Парсю {seed_count} крупных православных сообществ ({mode_text}).\n"
+        f"Оценка времени: {time_text}.\n\n"
+        f"После — найду пересечения и покажу сколько человек подписано "
+        f"на 2+ групп одновременно. Это и есть горячая аудитория.",
+        parse_mode="Markdown",
+    )
+
+    try:
+        async with VKAPIClient(service_token=settings.vk_api_service_token) as client:
+            results = await parse_groups_parallel(
+                client, get_seed_screen_names(), max_per_group=max_per_group
+            )
+    except Exception as e:
+        logger.exception("vk_audience parse failed")
+        await update.message.reply_text(
+            f"❌ Ошибка при парсинге: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Считаем пересечения с min=2 (минимум 2 группы)
+    intersection = find_intersections(results, min_intersections=2)
+
+    # Сводка по группам
+    lines = ["📊 *Результаты парсинга:*\n"]
+    for r in results:
+        if r.error:
+            lines.append(
+                f"❌ `{r.screen_name}` ({r.group_name}): {r.error}"
+            )
+        else:
+            collected = len(r.parsed_members)
+            total = r.total_members
+            collected_fmt = f"{collected:,}".replace(",", " ")
+            total_fmt = f"{total:,}".replace(",", " ")
+            lines.append(
+                f"✅ `{r.screen_name}` ({r.group_name}): "
+                f"собрано {collected_fmt} из {total_fmt}"
+            )
+
+    # Сводка пересечений
+    total = intersection.total_unique_users
+    hot = intersection.hot_users_count
+    total_fmt = f"{total:,}".replace(",", " ")
+    hot_fmt = f"{hot:,}".replace(",", " ")
+    pct = (hot / total * 100) if total else 0
+
+    lines.append("")
+    lines.append("🔥 *Пересечения:*")
+    lines.append(f"Всего уникальных людей: {total_fmt}")
+    lines.append(f"Из них в 2+ группах одновременно: *{hot_fmt}* ({pct:.1f}%)")
+    lines.append("")
+    lines.append("*Распределение:*")
+    dist = intersection.get_distribution()
+    for n_groups in sorted(dist.keys()):
+        count = dist[n_groups]
+        count_fmt = f"{count:,}".replace(",", " ")
+        lines.append(f"  в {n_groups} группах: {count_fmt} чел.")
+
+    lines.append("")
+    lines.append(
+        "_Следующий шаг (Phase 5.3) — автовыгрузка горячих в VK Ads "
+        "как сегмент для рекламы._"
+    )
+
+    text = "\n".join(lines)
+    if len(text) > 4000:
+        text = text[:4000] + "\n\n_(обрезано)_"
 
     await update.message.reply_text(text, parse_mode="Markdown")
