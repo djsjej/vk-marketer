@@ -66,6 +66,22 @@ class Settings(BaseSettings):
         ),
     )
 
+    # --- Аудиторные сегменты (TargetHunter / подписчики сообществ) ---
+    # ID сегментов из VK Ads → раздел «Аудитории». Создаются Vizit'ом
+    # руками: либо «Подписчики сообществ» (списком URL правосл. групп),
+    # либо CSV-загрузка от TargetHunter (активные/комментирующие).
+    # По https://ads.vk.com/doc/api/object/Targetings поле `segments`
+    # в Targetings — list of integer.
+    # Формат env: VK_AUDIENCE_SEGMENT_IDS="12345,67890" (CSV).
+    vk_audience_segment_ids: str | None = Field(
+        None,
+        description=(
+            "ID аудиторных сегментов через запятую — подписчики сообществ "
+            "или CSV-списки от TargetHunter. Создаются в UI кабинета VK Ads "
+            "→ Аудитории. Если задан — бот передаёт их в targetings.segments."
+        ),
+    )
+
     @field_validator(
         "vk_ads_token",
         "vk_ads_oauth_client_id",
@@ -136,6 +152,22 @@ class Settings(BaseSettings):
             int(x.strip())
             for x in self.vk_template_ad_group_ids.split(",")
             if x.strip().isdigit()
+        ]
+
+    @property
+    def vk_audience_segment_ids_parsed(self) -> list[int]:
+        """ID аудиторных сегментов в виде списка int.
+
+        Возвращает пустой список если env var не задан — тогда поле
+        `targetings.segments` НЕ передаётся в payload (VK расценил бы
+        пустой массив как «никаких сегментов» = таргет ни на кого).
+        """
+        if not self.vk_audience_segment_ids:
+            return []
+        return [
+            int(x.strip())
+            for x in self.vk_audience_segment_ids.split(",")
+            if x.strip().lstrip("-").isdigit()
         ]
 
     @property

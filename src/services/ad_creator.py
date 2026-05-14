@@ -69,7 +69,12 @@ class AdCopy:
     title: str  # ≤40 символов (title_40_vkads)
     text: str  # ≤2000 символов (text_2000)
     about: str  # ≤115 символов (about_company_115)
-    cta: str = "signUp"  # cta_community_vk: signUp/learnMore/openSite/etc
+    # cta_community_vk — enum из banner_fields.json:
+    # signUp, buy, contactUs, subscribe, message, write, visitSite, learnMore,
+    # getoffer, book, enroll, askQuestion, startChat, getPrice.
+    # Для package 3127 (Написать в сообщество) семантически точнее 'write' —
+    # буквально «Напишите имена близких» из бизнес-модели Vizit'а.
+    cta: str = "write"
 
 
 @dataclass
@@ -115,7 +120,7 @@ class AdCreator:
         daily_budget_rub_per_group: int = 200,
         sex: list[str] | None = None,
         geo_regions: list[int] | None = None,
-        package_id: int = 3122,
+        package_id: int = 3127,
         days_duration: int = 7,
         campaign_name_prefix: str = "auto",
         image_filename: str = "image.jpg",
@@ -131,9 +136,12 @@ class AdCreator:
                           внутренний URL-ID, который мы используем как ad_object_id.
             age_splits: список окон возраста, например [(41,42), (43,44)].
             daily_budget_rub_per_group: дневной бюджет в рублях на одну группу.
-            sex: ['male', 'female'] или один из, по умолчанию оба.
+            sex: ['female'] / ['male'] / оба. По умолчанию ['female'] —
+                бизнес-модель Vizit'а (молитвы → ЦА женщины 41-58).
             geo_regions: ID регионов VK, по умолчанию [188] (Россия).
-            package_id: тип объявления (3122 = «Вступить в сообщество»).
+            package_id: тип объявления. По умолчанию 3127 «Написать в сообщество»
+                (бизнес-модель — собрать имена для поминовения).
+                Историческое: 3122 «Вступить в сообщество».
             days_duration: сколько дней крутить кампанию.
             campaign_name_prefix: префикс имени для удобства идентификации.
             image_filename: имя файла (для multipart, влияет на MIME).
@@ -147,7 +155,10 @@ class AdCreator:
         if not age_splits:
             raise AdCreatorError("age_splits пустой — нет групп для создания")
         if sex is None:
-            sex = ["female", "male"]
+            # Бизнес-модель: молитвенная аудитория преимущественно женская
+            # 41-58 (см. DEFAULT_AGE_SPLITS_ORTHODOX). Раньше было оба пола,
+            # переключили на female по запросу Vizit'а 14.05.2026.
+            sex = ["female"]
         if geo_regions is None:
             geo_regions = [188]  # Россия
 
@@ -221,23 +232,39 @@ class AdCreator:
         # 'unknown_resource_field' / 'At least one pattern must be in package settings'.
         # Переменная всё ещё называется nested_campaigns для читаемости diff'а.
         nested_campaigns = []
+        # Опциональные сегменты аудитории (например, подписчики правосл.
+        # сообществ из VK Ads → Аудитории, или CSV от TargetHunter).
+        # По https://ads.vk.com/doc/api/object/Targetings поле `segments` —
+        # list of integer. Если settings.vk_audience_segment_ids_parsed
+        # пустой — поле в payload НЕ передаётся (иначе VK расценил бы пустой
+        # массив как «таргет ни на кого»).
+        from src.config import settings as _settings
+        audience_segments = _settings.vk_audience_segment_ids_parsed
         for age_from, age_to in age_splits:
             # age_list начинается с 0 — показывать тем чей возраст не указан
             # (по официальному гайду VK Ads "Быстрый старт"). Без 0 теряем
             # часть аудитории.
             age_list = [0] + list(range(age_from, age_to + 1))
             group_name = f"{age_from}-{age_to}"
+            # Базовые таргетинги для всех групп. interests_soc_dem [27137] =
+            # «Духовный рост и самовыражение» из targetings_tree.json
+            # (единственная категория VK Ads близкая к нашей нише —
+            # «Религии», «Православие» как интерес в VK не размечается).
+            ad_group_targetings: dict = {
+                "geo": {"regions": geo_regions},
+                "sex": sex,
+                "age": {"age_list": age_list},
+                "interests_soc_dem": [27137],
+                # ВАЖНО: НЕ передаём `pads` — auto-mode сам подбирает
+                # площадки под package_id. При явных pads VK переходит в
+                # manual-mode и требует patterns в settings package.
+                # group_members тоже не передаём (это для package 3194).
+            }
+            if audience_segments:
+                ad_group_targetings["segments"] = audience_segments
             nested_campaigns.append({
                 "name": group_name,
-                "targetings": {
-                    "geo": {"regions": geo_regions},
-                    "sex": sex,
-                    "age": {"age_list": age_list},
-                    # ВАЖНО: НЕ передаём `pads` — auto-mode сам подбирает
-                    # площадки под package_id. При явных pads VK переходит в
-                    # manual-mode и требует patterns в settings package.
-                    # group_members тоже не передаём (это для package 3194).
-                },
+                "targetings": ad_group_targetings,
                 "max_price": 0,
                 "budget_limit_day": daily_budget_rub_per_group,
                 "budget_limit": None,
@@ -253,7 +280,7 @@ class AdCreator:
                         "text_2000": {"text": copy.text[:2000]},
                         "about_company_115": {"text": copy.about[:115]},
                         # Для package 3122 (Вступить) — "signUp"
-                        # Для package 3127 (Написать) — "contactUs"
+                        # Для package 3127 (Написать) — "write" / "contactUs" / "message"
                         # Для package 3194 (Вовлеченность) — другой объект banner
                         "cta_community_vk": {"text": copy.cta},
                     },
@@ -376,7 +403,7 @@ class AdCreator:
         template_ad_plan_id: int,
         age_splits: list[tuple[int, int]],
         daily_budget_rub_per_group: int,
-        package_id: int = 3122,
+        package_id: int = 3127,
         banner_name_prefix: str = "bot",
         image_filename: str = "image.jpg",
     ) -> CampaignSummary:
@@ -489,9 +516,31 @@ class AdCreator:
         banner_ids: list[int] = []
         last_error: VKAdsAPIError | None = None
 
+        # Опциональные сегменты аудитории — те же что и в create_age_split_campaign.
+        # По https://ads.vk.com/doc/api/object/Targetings — `segments` это
+        # list of integer, поле в Targetings объекте. Если в env пусто —
+        # ключ не передаётся (пустой массив VK воспринял бы как «никаких
+        # сегментов» = таргет ни на кого).
+        from src.config import settings as _settings
+        audience_segments = _settings.vk_audience_segment_ids_parsed
+
         for age_from, age_to in age_splits:
             group_name = f"{age_from}-{age_to}"
             age_list = list(range(age_from, age_to + 1))
+
+            # Базовые таргетинги. interests_soc_dem [27137] = «Духовный рост
+            # и самовыражение» из targetings_tree.json — единственная
+            # релевантная категория VK Ads (прямой «Православие» там нет).
+            ad_group_targetings: dict = {
+                "geo": {"regions": [188]},  # 188 = Россия
+                "sex": ["female"],
+                # age_list начинается с 0 (по официальному гайду VK Ads):
+                # 0 = показывать тем, чей возраст не определён
+                "age": {"age_list": [0] + age_list},
+                "interests_soc_dem": [27137],
+            }
+            if audience_segments:
+                ad_group_targetings["segments"] = audience_segments
 
             ad_group_payload = {
                 "ad_plan_id": template_ad_plan_id,
@@ -502,22 +551,12 @@ class AdCreator:
                 "max_price": 0,
                 "package_id": package_id,
                 "age_restrictions": "0+",
-                "targetings": {
-                    "geo": {"regions": [188]},  # 188 = Россия
-                    "sex": ["female"],
-                    # age_list начинается с 0 (по официальному гайду VK Ads):
-                    # 0 = показывать тем, чей возраст не определён
-                    "age": {"age_list": [0] + age_list},
-                },
+                "targetings": ad_group_targetings,
                 "banners": [
-                    # Структура banner по официальному гайду VK Ads
-                    # (info "Быстрый старт" для package_id 3122):
-                    # - 2 изображения: icon_256x256 + image_600x600
-                    # - 4 textblock: title_40_vkads, text_2000,
-                    #   about_company_115, cta_community_vk
-                    # - cta_community_vk = "signUp" для package_id 3122
-                    #   (или "contactUs" для 3127)
-                    # Это правильные имена ролей — мы зря их раньше убрали.
+                    # Структура banner по официальному гайду VK Ads.
+                    # CTA берётся из copy.cta (раньше был захардкожен "signUp").
+                    # Для package 3127 (Написать) Claude генерит cta="write" —
+                    # семантически совпадает с бизнес-моделью «Напишите имена».
                     {
                         "name": f"{banner_name_prefix} | {group_name} | {copy.title[:25]}",
                         "urls": {"primary": {"id": internal_url_id}},
@@ -529,7 +568,7 @@ class AdCreator:
                             "title_40_vkads": {"text": copy.title[:40]},
                             "text_2000": {"text": copy.text[:2000]},
                             "about_company_115": {"text": copy.about[:115]},
-                            "cta_community_vk": {"text": "signUp"},
+                            "cta_community_vk": {"text": copy.cta},
                         },
                     }
                 ],

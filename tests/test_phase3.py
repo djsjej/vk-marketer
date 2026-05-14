@@ -147,7 +147,9 @@ def test_fallback_copy_handles_empty_caption():
     copy = fallback_copy_from_caption("")
     assert copy.title  # не пусто
     assert copy.text  # не пусто
-    assert copy.cta == "signUp"
+    # Phase 4 (14.05.2026): cta дефолт переехал с signUp на write —
+    # бизнес-модель Vizit'а это «Напишите имена», package 3127.
+    assert copy.cta == "write"
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +541,9 @@ async def test_template_flow_creates_groups_with_banners_in_existing_plan():
         assert "title_40_vkads" in banner["textblocks"]
         assert "text_2000" in banner["textblocks"]
         assert "about_company_115" in banner["textblocks"]
-        assert banner["textblocks"]["cta_community_vk"]["text"] == "signUp"
+        # Phase 4 (14.05.2026): cta больше не захардкожен signUp,
+        # берётся из copy.cta. AdCopy() default = "write" — для package 3127.
+        assert banner["textblocks"]["cta_community_vk"]["text"] == "write"
         # 2 картинки в content
         assert "icon_256x256" in banner["content"]
         assert "image_600x600" in banner["content"]
