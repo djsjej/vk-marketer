@@ -56,15 +56,42 @@ _CB_CANCEL = "campaign:cancel"
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Приветствие + сразу показываем меню с кнопками.
+
+    На iPhone это первое что видит Vizit — поэтому удобнее всего сразу
+    отдать ему меню, а не текстовое описание.
+    """
+    from telegram import KeyboardButton, ReplyKeyboardMarkup
+
+    keyboard = [
+        [
+            KeyboardButton("📊 Статус кабинета"),
+            KeyboardButton("🔧 Проверить VK API"),
+        ],
+        [
+            KeyboardButton("🔍 Поиск: православие"),
+            KeyboardButton("🔍 Поиск: монастырь"),
+        ],
+        [
+            KeyboardButton("🔍 Поиск: молитва"),
+            KeyboardButton("👥 Парсить pomolimsy"),
+        ],
+        [
+            KeyboardButton("👁 Биба-разведчик"),
+            KeyboardButton("📋 Все команды"),
+        ],
+    ]
+    markup = ReplyKeyboardMarkup(
+        keyboard, resize_keyboard=True, is_persistent=True
+    )
+
     await update.message.reply_text(
-        "🤖 Я — твой VK-маркетолог.\n\n"
-        "Что умею:\n"
-        "• Принимать фото + тему → Claude генерит 4 варианта текста, выбираешь лучший\n"
-        "• Запускать тестовую кампанию с возрастным A/B сплитом\n"
-        "• Искать VK-сообщества по теме и парсить их подписчиков (Phase 5)\n\n"
-        "Удобнее всего — через `/menu` (кнопки).\n"
-        "Все команды — через /help.",
+        "🤖 *Я — твой VK-маркетолог.*\n\n"
+        "Жми кнопки внизу — они сразу запускают действие. "
+        "Если нужен другой ключ поиска или сообщество — вводи команду "
+        "вручную через `/vk_search` или `/vk_parse`.",
         parse_mode="Markdown",
+        reply_markup=markup,
     )
 
 
@@ -745,12 +772,50 @@ async def _create_campaign_from_pending(
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик текстовых сообщений.
+
+    Сначала проверяет — не нажатие ли это на ReplyKeyboard-кнопку меню.
+    Если да — запускает соответствующий handler с правильными аргументами.
+    Иначе — обычный ответ-плейсхолдер.
+    """
     text = (update.message.text or "").strip()
     logger.info(f"Получен текст: '{text[:100]}'")
+
+    # 1. Проверяем — это кнопка меню?
+    if text in MENU_BUTTON_ROUTES:
+        action_type, action_value = MENU_BUTTON_ROUTES[text]
+
+        if action_type == "command":
+            # Команды без аргументов — вызываем handler напрямую
+            command_map = {
+                "status": status_command,
+                "vk_check": vk_check_command,
+                "biba": biba_command,
+                "help": help_command,
+            }
+            handler = command_map.get(action_value)
+            if handler:
+                context.args = []  # команда без аргументов
+                await handler(update, context)
+                return
+        elif action_type == "vk_search":
+            # Кнопка поиска с предустановленным ключом
+            context.args = action_value.split()
+            await vk_search_command(update, context)
+            return
+        elif action_type == "vk_parse":
+            # Кнопка парсинга с предустановленным аргументами (screen_name + N)
+            context.args = action_value.split()
+            await vk_parse_command(update, context)
+            return
+
+    # 2. Не кнопка — обычное текстовое сообщение
     await update.message.reply_text(
-        "📝 Принято. Сейчас работают:\n"
-        "• /status — статус кабинета\n"
-        "• Фото с подписью → 4 варианта от Claude → выбор → создание кампании"
+        "📝 Принято. Что можно делать:\n"
+        "• `/menu` — меню с кнопками\n"
+        "• `/help` — все команды\n"
+        "• Фото с подписью → 4 варианта от Claude → создание кампании",
+        parse_mode="Markdown",
     )
 
 
@@ -1010,97 +1075,74 @@ async def vk_parse_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Главное меню бота с inline-кнопками — точка входа во все функции.
+    """Главное меню бота — ReplyKeyboard под клавиатурой Telegram.
 
-    Появилось когда Vizit попросил «кнопки команд» — на iPhone неудобно
-    вводить команды с аргументами вручную. Кнопки делают навигацию проще.
+    Появилось когда Vizit попросил «кнопки команд». На iPhone это самое
+    удобное — постоянное меню которое не теряется в истории.
 
-    Сейчас кнопки показывают подсказки как использовать команды.
-    В Phase 5.3 — заменим на пошаговые диалоги через callback_query.
+    Кнопки сразу запускают действия (без ввода команд):
+    - Команды без аргументов (status, biba, vk_check) — выполняются сразу
+    - Команды с аргументами — у нас есть кнопки для частых случаев
+      (поиск «православие», парсинг pomolimsy)
+    - Для произвольных аргументов — Vizit вводит /vk_search или /vk_parse вручную
     """
-    from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+    from telegram import KeyboardButton, ReplyKeyboardMarkup
 
     keyboard = [
         [
-            InlineKeyboardButton("🔍 Поиск сообществ", callback_data="menu_search"),
-            InlineKeyboardButton("👥 Парсить подписчиков", callback_data="menu_parse"),
+            KeyboardButton("📊 Статус кабинета"),
+            KeyboardButton("🔧 Проверить VK API"),
         ],
         [
-            InlineKeyboardButton("📊 Статус кабинета", callback_data="menu_status"),
-            InlineKeyboardButton("🔧 Проверить VK API", callback_data="menu_vk_check"),
+            KeyboardButton("🔍 Поиск: православие"),
+            KeyboardButton("🔍 Поиск: монастырь"),
         ],
         [
-            InlineKeyboardButton("👁 Биба — карта VK Ads", callback_data="menu_biba"),
-            InlineKeyboardButton("📋 Все команды", callback_data="menu_help"),
+            KeyboardButton("🔍 Поиск: молитва"),
+            KeyboardButton("👥 Парсить pomolimsy"),
+        ],
+        [
+            KeyboardButton("👁 Биба-разведчик"),
+            KeyboardButton("📋 Все команды"),
         ],
     ]
-    markup = InlineKeyboardMarkup(keyboard)
+    markup = ReplyKeyboardMarkup(
+        keyboard,
+        resize_keyboard=True,  # подгоняет размер кнопок под экран
+        is_persistent=True,    # меню остаётся между сообщениями
+    )
 
     await update.message.reply_text(
-        "🎛 *Главное меню*\n\n"
-        "Выбери действие — бот подскажет что ввести.",
+        "🎛 *Меню готово*\n\n"
+        "Кнопки внизу — нажимай. Каждая сразу запускает действие.\n\n"
+        "Если нужно другое ключевое слово или сообщество — введи команду вручную:\n"
+        "`/vk_search <твоё ключевое слово>`\n"
+        "`/vk_parse <screen_name> [число]`",
         parse_mode="Markdown",
         reply_markup=markup,
     )
 
 
-async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик нажатий на кнопки главного меню.
+# Маппинг текста ReplyKeyboard-кнопок → название команды/действия.
+# Используется в handle_text для роутинга нажатий на кнопки.
+MENU_BUTTON_ROUTES = {
+    "📊 Статус кабинета": ("command", "status"),
+    "🔧 Проверить VK API": ("command", "vk_check"),
+    "🔍 Поиск: православие": ("vk_search", "православие"),
+    "🔍 Поиск: монастырь": ("vk_search", "монастырь"),
+    "🔍 Поиск: молитва": ("vk_search", "молитва"),
+    "👥 Парсить pomolimsy": ("vk_parse", "pomolimsy 100"),
+    "👁 Биба-разведчик": ("command", "biba"),
+    "📋 Все команды": ("command", "help"),
+}
 
-    Сейчас просто показывает подсказку как использовать конкретную команду.
-    В будущем здесь будут пошаговые диалоги (например, после нажатия
-    «Поиск сообществ» бот спрашивает «введи ключевую фразу», ждёт ответ,
-    запускает поиск).
+
+async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Старый inline-callback (не используется в новом ReplyKeyboard-меню).
+
+    Оставлен на случай если где-то в будущих фичах появятся inline-кнопки
+    с pattern `menu_`. Сейчас просто молча отвечает на callback.
     """
     query = update.callback_query
-    await query.answer()  # убирает «часики» на кнопке
-
-    action = query.data
-    hint = ""
-
-    if action == "menu_search":
-        hint = (
-            "🔍 *Поиск сообществ*\n\n"
-            "Введи команду с ключевой фразой:\n"
-            "`/vk_search православие`\n"
-            "`/vk_search молитва за здравие`\n"
-            "`/vk_search монастырь`\n\n"
-            "Бот вернёт топ-20 сообществ с числом подписчиков."
-        )
-    elif action == "menu_parse":
-        hint = (
-            "👥 *Парсинг подписчиков*\n\n"
-            "Введи команду с именем сообщества:\n"
-            "`/vk_parse pomolimsy` — все подписчики\n"
-            "`/vk_parse pomolimsy 100` — первые 100 (для теста)\n\n"
-            "Получишь ID подписчиков, готовые для пересечений."
-        )
-    elif action == "menu_status":
-        hint = "Введи `/status` — увидишь баланс кабинета и активные кампании."
-    elif action == "menu_vk_check":
-        hint = (
-            "🔧 *Проверка VK API*\n\n"
-            "Введи `/vk_check` — бот проверит что service token работает "
-            "(запросит инфо о pomolimsy)."
-        )
-    elif action == "menu_biba":
-        hint = (
-            "👁 *Биба-разведчик*\n\n"
-            "Введи `/biba` — она опросит 36 endpoints VK Ads и пришлёт "
-            "карту функционала кабинета (1-2 минуты)."
-        )
-    elif action == "menu_help":
-        hint = (
-            "📋 *Все команды*\n\n"
-            "`/start` — приветствие\n"
-            "`/menu` — это меню\n"
-            "`/help` — подробнее\n"
-            "`/status` — кабинет\n"
-            "`/biba` — карта VK Ads\n"
-            "`/vk_check [screen_name]` — проверка VK API\n"
-            "`/vk_search <ключ>` — поиск сообществ\n"
-            "`/vk_parse <screen_name>` — парсинг подписчиков\n\n"
-            "📸 Фото с подписью → создание рекламной кампании."
-        )
-
-    await query.edit_message_text(hint, parse_mode="Markdown")
+    if query:
+        await query.answer()
