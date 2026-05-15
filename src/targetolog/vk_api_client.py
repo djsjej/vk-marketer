@@ -314,6 +314,61 @@ class VKAPIClient:
 
         return all_members
 
+    async def users_get_batch(
+        self,
+        user_ids: list[int],
+        fields: str = "sex,bdate,city",
+    ) -> list[dict]:
+        """Получает профили пользователей пачкой.
+
+        Используется для фильтрации горячей аудитории — узнаём пол,
+        возраст и город каждого человека, оставляем только тех кто
+        попадает в ЦА.
+
+        VK ограничивает 1000 user_id за запрос (через CSV-параметр).
+        Делаем автопагинацию.
+
+        Args:
+            user_ids: список ID пользователей
+            fields: CSV полей которые нужны. Стандартные:
+                - sex (1=жен, 2=муж, 0=не указан)
+                - bdate (формат 'D.M.YYYY' или 'D.M' если год скрыт)
+                - city (объект {id, title})
+                - country, online, has_photo, и другие
+
+        Returns:
+            Список dict с профилями. Для пользователей которые скрыли
+            свои данные — соответствующие поля будут отсутствовать.
+
+        Ограничения service token:
+        - Возвращает только публичные данные
+        - Удалённые/заблокированные пользователи возвращают объект с
+          полями {id, deactivated: 'deleted'|'banned'} — без bdate/city
+        """
+        if not user_ids:
+            return []
+
+        all_profiles: list[dict] = []
+        per_request = 1000  # VK максимум
+
+        for start in range(0, len(user_ids), per_request):
+            batch = user_ids[start : start + per_request]
+            response = await self.call(
+                "users.get",
+                user_ids=",".join(str(uid) for uid in batch),
+                fields=fields,
+            )
+            # response — это просто список профилей
+            if isinstance(response, list):
+                all_profiles.extend(response)
+            else:
+                # неожиданный формат — логируем но не падаем
+                logger.warning(
+                    f"users.get вернул не список: {type(response).__name__}"
+                )
+
+        return all_profiles
+
     async def find_orthodox_communities(
         self,
         queries: list[str] | None = None,

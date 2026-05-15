@@ -69,6 +69,66 @@ ORTHODOX_COMMUNITIES_SEED: list[OrthodoxCommunity] = [
         category="информационный",
         notes="ПРОВЕРЕНО 15.05 — открытые. Православие в широком смысле, история и традиции.",
     ),
+    # --- НЕПРОВЕРЕННЫЕ кандидаты на 15.05.2026 (добавлены при расширении seed) ---
+    # Vizit должен проверить каждое через /vk_parse <screen_name> 10.
+    # Если возвращает error 15 (access denied / group hide members) — убрать
+    # из seed. Если работает — пометить как ПРОВЕРЕНО.
+    OrthodoxCommunity(
+        screen_name="iconpainting",
+        expected_name="Иконопись (~)",
+        approx_members=80_000,
+        category="информационный",
+        notes="НЕПРОВЕРЕНО 15.05. Иконы и иконопись — близкая тематика, может иметь молящихся.",
+    ),
+    OrthodoxCommunity(
+        screen_name="pravoslavnie_molitvi",
+        expected_name="Православные молитвы (~)",
+        approx_members=60_000,
+        category="женский",
+        notes="НЕПРОВЕРЕНО 15.05. Прямой запрос ЦА — молитвы.",
+    ),
+    OrthodoxCommunity(
+        screen_name="pravoslavie_ru",
+        expected_name="Православие.Ру (~)",
+        approx_members=70_000,
+        category="информационный",
+        notes="НЕПРОВЕРЕНО 15.05. Один из крупнейших правосл. порталов.",
+    ),
+    OrthodoxCommunity(
+        screen_name="diveevo_serafim",
+        expected_name="Дивеево / Серафим Саровский (~)",
+        approx_members=50_000,
+        category="монастырь",
+        notes="НЕПРОВЕРЕНО 15.05. Если открыто — сильное попадание (паломники).",
+    ),
+    OrthodoxCommunity(
+        screen_name="azbyka_ru",
+        expected_name="Азбука Веры (~)",
+        approx_members=100_000,
+        category="информационный",
+        notes="НЕПРОВЕРЕНО 15.05. Крупный православный портал с молитвословом.",
+    ),
+    OrthodoxCommunity(
+        screen_name="optina",
+        expected_name="Оптина пустынь (~)",
+        approx_members=60_000,
+        category="монастырь",
+        notes="НЕПРОВЕРЕНО 15.05. Известный монастырь, паломническая аудитория.",
+    ),
+    OrthodoxCommunity(
+        screen_name="pravkalendar",
+        expected_name="Православный календарь (~)",
+        approx_members=40_000,
+        category="информационный",
+        notes="НЕПРОВЕРЕНО 15.05. Календарь святых — релевантно нашей нише.",
+    ),
+    OrthodoxCommunity(
+        screen_name="pravlife",
+        expected_name="Православная жизнь (~)",
+        approx_members=80_000,
+        category="женский",
+        notes="НЕПРОВЕРЕНО 15.05. Жизнь православной семьи.",
+    ),
 ]
 
 

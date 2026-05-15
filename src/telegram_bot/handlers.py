@@ -1420,10 +1420,58 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
+    # Phase 5.5 — фильтрация горячей аудитории по ЦА pomolimsy
+    # (женщины 41-58). Делаем перед CSV-выгрузкой и автозагрузкой.
+    target_audience_ids: list[int] = list(sorted(intersection.hot_users))
+    filter_stats_text = ""
+
+    if intersection.hot_users:
+        from src.targetolog.audience_filter import AudienceFilter, filter_audience
+
+        await update.message.reply_text(
+            f"🎯 Сужаю до ЦА (женщины 41-58)... запрашиваю профили "
+            f"{intersection.hot_users_count:,} человек.".replace(",", " "),
+        )
+
+        try:
+            async with VKAPIClient(service_token=settings.vk_api_service_token) as client:
+                profiles = await client.users_get_batch(
+                    list(intersection.hot_users),
+                    fields="sex,bdate",
+                )
+        except Exception as e:
+            logger.exception("users_get_batch failed")
+            await update.message.reply_text(
+                f"⚠️ Не удалось получить профили для фильтрации: "
+                f"`{type(e).__name__}: {e}`\n\n"
+                f"Продолжаю без фильтра — выгружу всех горячих как есть.",
+                parse_mode="Markdown",
+            )
+            profiles = []
+
+        if profiles:
+            matched_ids, stats = filter_audience(profiles, AudienceFilter())
+            target_audience_ids = matched_ids
+
+            matched_fmt = f"{stats.matched:,}".replace(",", " ")
+            input_fmt = f"{stats.total_input:,}".replace(",", " ")
+            no_bdate_fmt = f"{stats.skipped_no_bdate:,}".replace(",", " ")
+            wrong_sex_fmt = f"{stats.skipped_wrong_sex:,}".replace(",", " ")
+            wrong_age_fmt = f"{stats.skipped_wrong_age:,}".replace(",", " ")
+
+            filter_stats_text = (
+                f"🎯 *После фильтра ЦА:* {matched_fmt} из {input_fmt} "
+                f"({stats.matched_pct:.1f}%)\n"
+                f"  Отсеяно: пол ≠ женский — {wrong_sex_fmt}, "
+                f"возраст не 41-58 — {wrong_age_fmt}, "
+                f"скрыли ДР — {no_bdate_fmt}\n\n"
+            )
+            await update.message.reply_text(filter_stats_text, parse_mode="Markdown")
+
     # Phase 5.4 — формируем CSV для ручной загрузки в VK Ads.
     # VK Ads принимает обычный текстовый файл со списком user_id, по одному
     # на строку. Поэтому формат тривиальный.
-    if intersection.hot_users:
+    if target_audience_ids:
         import io
         from datetime import datetime
 
@@ -1431,22 +1479,22 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
         filename = f"hot_audience_{timestamp}.csv"
         buf = io.BytesIO()
-        # Сортируем для воспроизводимости
-        sorted_hot_users = sorted(intersection.hot_users)
-        for uid in sorted_hot_users:
+        sorted_audience_ids = sorted(target_audience_ids)
+        for uid in sorted_audience_ids:
             buf.write(f"{uid}\n".encode("utf-8"))
         buf.seek(0)
 
-        hot_count_fmt = f"{intersection.hot_users_count:,}".replace(",", " ")
+        target_count = len(sorted_audience_ids)
+        hot_count_fmt = f"{target_count:,}".replace(",", " ")
         await update.message.reply_document(
             document=buf,
             filename=filename,
             caption=(
-                f"📤 *Горячая аудитория для VK Ads* — {hot_count_fmt} человек\n\n"
+                f"📤 *Целевая аудитория для VK Ads* — {hot_count_fmt} человек "
+                f"(женщины 41-58, в 2+ правосл. сообществах)\n\n"
                 f"Этот файл можно загрузить руками через UI кабинета "
                 f"(VK Ads → Аудитории → Создать → Из файла), либо бот "
-                f"сейчас попробует автоматически — если у нас 2000+ ID "
-                f"(минимум который требует VK Ads API)."
+                f"сейчас попробует автоматически — если у нас 2000+ ID."
             ),
             parse_mode="Markdown",
         )
@@ -1454,13 +1502,14 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         # Phase 5.4 — автозагрузка в VK Ads через API
         from src.vk_ads.client import VKAdsAPIError, VKAdsClient
 
-        if intersection.hot_users_count < 2000:
+        if target_count < 2000:
             await update.message.reply_text(
-                f"⚠️ Горячих {hot_count_fmt}, а VK Ads API требует *минимум 2000* "
-                f"для создания сегмента. Автозагрузка пропущена — можно "
-                f"загрузить файл руками (он выше). Либо запусти "
-                f"`/vk_audience full` чтобы собрать всю аудиторию каждой "
-                f"группы — горячих будет на порядок больше.",
+                f"⚠️ В ЦА всего {hot_count_fmt}, а VK Ads API требует "
+                f"*минимум 2000* для создания сегмента. Автозагрузка "
+                f"пропущена — можно загрузить файл руками (он выше). "
+                f"Либо запусти `/vk_audience full` чтобы собрать всю "
+                f"аудиторию каждой группы — после фильтра горячих "
+                f"будет в разы больше.",
                 parse_mode="Markdown",
             )
             return
@@ -1474,7 +1523,7 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             )
             return
 
-        list_name = f"Горячая аудитория {timestamp}"
+        list_name = f"Pomolimsy ЦА {timestamp}"
         await update.message.reply_text(
             f"⏳ Автозагружаю в VK Ads как `{list_name}`...",
             parse_mode="Markdown",
@@ -1483,7 +1532,7 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         try:
             result = await ads_client.create_remarketing_users_list(
                 name=list_name,
-                user_ids=sorted_hot_users,
+                user_ids=sorted_audience_ids,
             )
         except VKAdsAPIError as e:
             await update.message.reply_text(
