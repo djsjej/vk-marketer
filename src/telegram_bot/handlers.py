@@ -1484,7 +1484,26 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     if len(text) > 4000:
         text = text[:4000] + "\n\n_(обрезано)_"
 
-    await update.message.reply_text(text, parse_mode="Markdown")
+    # Defensive: иногда Markdown ломается на спец. символах из VK ошибок
+    # (backticks, звёздочки, подчёркивания внутри названий групп или
+    # error messages). Тогда Telegram возвращает 400 'can't parse entities'.
+    # Если упало — отправляем plain text без форматирования.
+    try:
+        await update.message.reply_text(text, parse_mode="Markdown")
+    except Exception as e:
+        logger.warning(f"Markdown render failed, fallback to plain: {e}")
+        # Убираем markdown спецсимволы для plain text
+        plain_text = text.replace("*", "").replace("_", "").replace("`", "")
+        await update.message.reply_text(plain_text)
+
+    # Логируем критичные числа в Railway logs для диагностики
+    logger.info(
+        f"vk_audience результаты: groups={len(results)}, "
+        f"errors={sum(1 for r in results if r.error)}, "
+        f"intersection_total={intersection.total_unique_users}, "
+        f"hot_raw={len(hot_ids_raw)}, "
+        f"after_filter={filter_stats.matched}"
+    )
 
     # Phase 5.7 — используем отфильтрованный список (а не сырой intersection.hot_users)
     target_audience_ids: list[int] = sorted(filtered_ids)
