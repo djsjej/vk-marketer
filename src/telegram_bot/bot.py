@@ -14,6 +14,7 @@ from src.config import settings
 from src.telegram_bot.handlers import (
     agent_command,
     biba_command,
+    boba_command,
     clean_tokens_command,
     handle_photo,
     handle_text,
@@ -78,6 +79,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("agent", agent_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("boba", boba_command, filters=owner_filter)
     )
     application.add_handler(
         CommandHandler("vk_audience", vk_audience_command, filters=owner_filter)

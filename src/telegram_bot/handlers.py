@@ -65,19 +65,22 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     keyboard = [
         [
-            KeyboardButton("🧠 Поговорить с агентом"),
+            KeyboardButton("💼 Поговорить с Бобой (CMO)"),
             KeyboardButton("🔥 Горячая аудитория"),
         ],
         [
+            KeyboardButton("🧠 Поговорить с агентом"),
             KeyboardButton("📊 Статус кабинета"),
+        ],
+        [
             KeyboardButton("🔧 Проверить VK API"),
-        ],
-        [
             KeyboardButton("☦️ Православные сообщества"),
-            KeyboardButton("👥 Парсить Верую"),
         ],
         [
+            KeyboardButton("👥 Парсить Верую"),
             KeyboardButton("👁 Биба-разведчик"),
+        ],
+        [
             KeyboardButton("📋 Все команды"),
         ],
     ]
@@ -87,10 +90,10 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     await update.message.reply_text(
         "🤖 *Я — твой VK-маркетолог.*\n\n"
-        "Главное: *🧠 Поговорить с агентом* — Claude в роли таргетолога, "
-        "помнит контекст, объясняет стратегию. Или сразу *🔥 Горячая "
-        "аудитория* — бот соберёт подписчиков 8 крупных правосл. сообществ "
-        "и найдёт тех кто в 2+ группах одновременно.",
+        "Главное: *💼 Поговорить с Бобой* — CMO нашей рекламной "
+        "организации, жёсткий стратег, даёт 3 варианта стратегии с прогнозом. "
+        "Или *🔥 Горячая аудитория* — бот соберёт подписчиков 8 крупных правосл. "
+        "сообществ и найдёт тех кто в 2+ группах одновременно.",
         parse_mode="Markdown",
         reply_markup=markup,
     )
@@ -108,12 +111,15 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     await update.message.reply_text(
         "📋 Команды:\n\n"
         "/menu — главное меню с кнопками 🎛\n"
+        "/boba — поговорить с Бобой (CMO Рекламной Организации) 💼\n"
+        "/agent — поговорить с агентом-таргетологом 🧠\n"
+        "/vk_audience [N|full] — собрать горячую аудиторию 🔥\n"
         "/start — приветствие\n"
         "/help — это сообщение\n"
         "/status — реальный статус кабинета VK\n"
         "/biba — карта функционала кабинета VK Ads (REPORT.md + raw JSON в zip)\n"
         "/vk_check [screen_name] — проверка VK API service token\n"
-        "/vk_search <ключ> — поиск VK-сообществ по теме (Phase 5)\n"
+        "/vk_search <ключ> — поиск VK-сообществ по теме\n"
         "/vk_parse <screen_name> [N] — парсинг подписчиков сообщества\n\n"
         "📸 Прислать фото с подписью:\n"
         "1. Подпись = тема рекламы (например: «молитвы за здравие в монастыре»)\n"
@@ -786,10 +792,13 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     # 1. Проверяем — это кнопка меню?
     if text in MENU_BUTTON_ROUTES:
-        # При нажатии кнопки меню — автоматический выход из режима агента
+        # При нажатии кнопки меню — автоматический выход из режимов агентов
         if context.user_data.get("in_agent_mode"):
             context.user_data["in_agent_mode"] = False
             context.user_data.pop("agent_history", None)
+        if context.user_data.get("in_boba_mode"):
+            context.user_data["in_boba_mode"] = False
+            context.user_data.pop("boba_history", None)
 
         action_type, action_value = MENU_BUTTON_ROUTES[text]
 
@@ -803,6 +812,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
                 "biba": biba_command,
                 "help": help_command,
                 "agent": agent_command,
+                "boba": boba_command,
             }
             handler = command_map.get(action_value)
             if handler:
@@ -820,7 +830,20 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             await vk_parse_command(update, context)
             return
 
-    # 2. Режим агента активен — все текстовые сообщения идут в Claude
+    # 2. Режим Бобы (CMO) активен — все текстовые сообщения идут в Бобу
+    if context.user_data.get("in_boba_mode"):
+        if text.lower() in ("выйти", "выход", "exit", "стоп", "quit"):
+            context.user_data["in_boba_mode"] = False
+            context.user_data.pop("boba_history", None)
+            await update.message.reply_text(
+                "💼 Вышел из диалога с Бобой. Меню снова работает как обычно."
+            )
+            return
+
+        await _boba_chat_turn(update, context, text)
+        return
+
+    # 3. Режим агента-таргетолога активен
     if context.user_data.get("in_agent_mode"):
         # Команды выхода из режима
         if text.lower() in ("выйти", "выход", "exit", "стоп", "quit"):
@@ -834,10 +857,11 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await _agent_chat_turn(update, context, text)
         return
 
-    # 3. Обычное текстовое сообщение
+    # 4. Обычное текстовое сообщение
     await update.message.reply_text(
         "📝 Принято. Что можно делать:\n"
         "• `/menu` — меню с кнопками\n"
+        "• `/boba` — поговорить с Бобой (CMO) 💼\n"
         "• `/agent` — разговор с агентом-таргетологом 🧠\n"
         "• `/help` — все команды\n"
         "• Фото с подписью → 4 варианта от Claude → создание кампании",
@@ -1158,19 +1182,22 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     keyboard = [
         [
-            KeyboardButton("🧠 Поговорить с агентом"),
+            KeyboardButton("💼 Поговорить с Бобой (CMO)"),
             KeyboardButton("🔥 Горячая аудитория"),
         ],
         [
+            KeyboardButton("🧠 Поговорить с агентом"),
             KeyboardButton("📊 Статус кабинета"),
+        ],
+        [
             KeyboardButton("🔧 Проверить VK API"),
-        ],
-        [
             KeyboardButton("☦️ Православные сообщества"),
-            KeyboardButton("👥 Парсить Верую"),
         ],
         [
+            KeyboardButton("👥 Парсить Верую"),
             KeyboardButton("👁 Биба-разведчик"),
+        ],
+        [
             KeyboardButton("📋 Все команды"),
         ],
     ]
@@ -1182,9 +1209,9 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     await update.message.reply_text(
         "🎛 *Меню готово*\n\n"
-        "Кнопки внизу — нажимай. Каждая сразу запускает действие. "
-        "🧠 для разговора с агентом в свободной форме. 🔥 для одношагового "
-        "сбора горячей аудитории.",
+        "💼 Боба — CMO рекламной организации, жёсткий стратег. "
+        "🧠 Агент-таргетолог — мягкий советник. "
+        "🔥 Горячая аудитория — сбор автоматом за пару минут.",
         parse_mode="Markdown",
         reply_markup=markup,
     )
@@ -1197,6 +1224,7 @@ MENU_BUTTON_ROUTES = {
     "🔧 Проверить VK API": ("command", "vk_check"),
     "🔥 Горячая аудитория": ("command", "vk_audience"),
     "👥 Парсить Верую": ("vk_parse", "pravoslavnie_hristiane 1000"),
+    "💼 Поговорить с Бобой (CMO)": ("command", "boba"),
     "🧠 Поговорить с агентом": ("command", "agent"),
     "☦️ Православные сообщества": ("command", "vk_orthodox"),
     "👁 Биба-разведчик": ("command", "biba"),
@@ -1608,3 +1636,86 @@ async def _agent_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, t
             await update.message.reply_text(text_to_send)
 
 
+
+
+async def boba_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Вход в режим разговора с Бобой — CMO Рекламной Организации Vizit.
+
+    Phase 6 — первая итерация диалога с Бобой как CMO для Vizit'а.
+    Раньше Боба был только моим (Claude) внутренним консультантом, теперь
+    он становится также консультантом Vizit'а через Telegram.
+
+    Боба — жёсткий критик, VK-гуру 43 лет, специализация на стратегии.
+    Не подменяет собой существующего агента-таргетолога (/agent) — это
+    другая роль и другой характер.
+
+    Выход из режима — текст «выйти» или нажатие любой кнопки меню.
+    """
+    context.user_data["in_boba_mode"] = True
+    context.user_data["boba_history"] = []  # начинаем диалог с чистого листа
+
+    # Также выключаем режим таргетолога если он был включён — нельзя
+    # одновременно говорить с двумя агентами.
+    context.user_data["in_agent_mode"] = False
+
+    await update.message.reply_text(
+        "💼 *Боба на связи.* CMO Рекламной Организации Vizit.\n\n"
+        "Тебе 43, я VK-гуру с 13-летним стажем, прошёл все версии "
+        "рекламного кабинета. Специализируюсь на стратегии — общая картина, "
+        "что делать когда. Жёсткий, без воды.\n\n"
+        "Пиши что у тебя — задачу, идею, проблему с кампанией. Я разложу "
+        "по полочкам, дам 3 варианта стратегии с прогнозом CPL.\n\n"
+        "Выйти — напиши «выйти» или нажми любую кнопку меню.",
+        parse_mode="Markdown",
+    )
+
+
+async def _boba_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+    """Один turn разговора с Бобой. Внутренний хелпер."""
+    from src.agents import BOBA_PERSONA
+    from src.agents.dialog import DialogAgent
+
+    await update.message.chat.send_action(action="typing")
+
+    history = context.user_data.get("boba_history", [])
+
+    try:
+        agent = DialogAgent(persona=BOBA_PERSONA)
+        response = await agent.chat(user_message=text, history=history)
+    except Exception as e:
+        logger.exception("Boba chat failed")
+        await update.message.reply_text(
+            f"❌ Боба не смог ответить: `{type(e).__name__}`. "
+            f"Попробуй ещё раз или выйди через «выйти».",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Сохраняем обновлённую историю для следующего turn
+    context.user_data["boba_history"] = response.updated_history
+
+    # Разбиение длинных ответов по 4000 символов (Telegram лимит 4096)
+    text_to_send = response.text
+    if len(text_to_send) > 4000:
+        chunks = []
+        current = ""
+        for para in text_to_send.split("\n\n"):
+            if len(current) + len(para) + 2 < 4000:
+                current += ("\n\n" if current else "") + para
+            else:
+                if current:
+                    chunks.append(current)
+                current = para
+        if current:
+            chunks.append(current)
+
+        for chunk in chunks:
+            try:
+                await update.message.reply_text(chunk, parse_mode="Markdown")
+            except Exception:
+                await update.message.reply_text(chunk)
+    else:
+        try:
+            await update.message.reply_text(text_to_send, parse_mode="Markdown")
+        except Exception:
+            await update.message.reply_text(text_to_send)
