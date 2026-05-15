@@ -33,62 +33,41 @@ class OrthodoxCommunity(NamedTuple):
 
 # Топ открытых православных сообществ для парсинга подписчиков и поиска
 # пересечений. Список упорядочен по приблизительному размеру убывание.
+#
+# Проверено на проде 15.05.2026 через /vk_audience — 4 сообщества из
+# предыдущей версии оказались со скрытыми подписчиками (error 15) и убраны:
+# veruyu, orthodox_woman, pravoclavie, pravoslavie_fm. Оставлены только
+# реально открытые. На будущее — кто захочет добавить новые группы,
+# должен сначала проверить через /vk_parse <screen_name> 10 что VK
+# не возвращает error 15.
 ORTHODOX_COMMUNITIES_SEED: list[OrthodoxCommunity] = [
-    OrthodoxCommunity(
-        screen_name="pravoslavnie_hristiane",
-        expected_name="Верую † Православие",
-        approx_members=700_000,
-        category="информационный",
-        notes="Крупнейшее православное VK-сообщество, общая тематика.",
-    ),
-    OrthodoxCommunity(
-        screen_name="veruyu",
-        expected_name="Верю!",
-        approx_members=109_000,
-        category="информационный",
-        notes="Подтверждено через /vk_parse 15.05 — подписчики открыты.",
-    ),
-    OrthodoxCommunity(
-        screen_name="p_trapeza",
-        expected_name="Постная трапеза",
-        approx_members=90_000,
-        category="женский",  # женская аудитория, готовка
-        notes="Высокая концентрация ЦА pomolimsy — замужние женщины 35-60.",
-    ),
-    OrthodoxCommunity(
-        screen_name="ortodoxia",
-        expected_name="Православие † Ορθόδοξη",
-        approx_members=85_000,
-        category="информационный",
-        notes="Православие в широком смысле, история и традиции.",
-    ),
-    OrthodoxCommunity(
-        screen_name="orthodox_woman",
-        expected_name="Православная женщина",
-        approx_members=80_000,
-        category="женский",
-        notes="Идеальное попадание в ЦА — женщины 40-60, замужние.",
-    ),
-    OrthodoxCommunity(
-        screen_name="pravoclavie",
-        expected_name="Православие",
-        approx_members=80_000,
-        category="информационный",
-        notes="Общая правосл. аудитория.",
-    ),
     OrthodoxCommunity(
         screen_name="orthodoxpsiholog",
         expected_name="Православная психология",
-        approx_members=55_000,
+        approx_members=406_000,
         category="женский",
-        notes="Женская аудитория с запросом на духовно-психологическую помощь.",
+        notes="ПРОВЕРЕНО 15.05 на проде — открытые подписчики. 406k! Сильно больше чем я думал. Женская аудитория с запросом на духовно-психологическую помощь — попадание в ЦА pomolimsy.",
     ),
     OrthodoxCommunity(
-        screen_name="pravoslavie_fm",
-        expected_name="Православие FM",
-        approx_members=50_000,
+        screen_name="p_trapeza",
+        expected_name="Постная трапеза. Великий пост. Рецепты",
+        approx_members=224_000,
+        category="женский",
+        notes="ПРОВЕРЕНО 15.05 — открытые. 224k, тоже сильно больше ожидаемого 90k. Женская аудитория, замужние, готовка.",
+    ),
+    OrthodoxCommunity(
+        screen_name="pravoslavnie_hristiane",
+        expected_name="Верю!",
+        approx_members=109_000,
         category="информационный",
-        notes="Радио + молитвы, может содержать молящихся за близких.",
+        notes="ПРОВЕРЕНО 15.05 — открытые. Реально это сообщество называется 'Верю!' (а не 'Верую Православие' как я думал). Общая правосл. аудитория.",
+    ),
+    OrthodoxCommunity(
+        screen_name="ortodoxia",
+        expected_name="Православие. Ортодоксия.",
+        approx_members=69_000,
+        category="информационный",
+        notes="ПРОВЕРЕНО 15.05 — открытые. Православие в широком смысле, история и традиции.",
     ),
 ]
 

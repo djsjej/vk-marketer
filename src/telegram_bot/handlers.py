@@ -1420,6 +1420,39 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
+    # Phase 5.4 — формируем CSV для ручной загрузки в VK Ads.
+    # VK Ads принимает обычный текстовый файл со списком user_id, по одному
+    # на строку. Поэтому формат тривиальный.
+    if intersection.hot_users:
+        import io
+        from datetime import datetime
+
+        # Сохраняем в BytesIO чтобы не плодить файлы на диске Railway
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        filename = f"hot_audience_{timestamp}.csv"
+        buf = io.BytesIO()
+        # Сортируем для воспроизводимости
+        for uid in sorted(intersection.hot_users):
+            buf.write(f"{uid}\n".encode("utf-8"))
+        buf.seek(0)
+
+        hot_count_fmt = f"{intersection.hot_users_count:,}".replace(",", " ")
+        await update.message.reply_document(
+            document=buf,
+            filename=filename,
+            caption=(
+                f"📤 *Горячая аудитория для VK Ads* — {hot_count_fmt} человек\n\n"
+                f"Что делать:\n"
+                f"1. Открой кабинет VK Ads → раздел *Аудитории*\n"
+                f"2. Нажми *Создать аудиторию* → выбери *Из файла*\n"
+                f"3. Загрузи этот файл (это `user_id`, по одному на строку)\n"
+                f"4. После создания сегмента — скопируй его ID\n"
+                f"5. Пришли мне ID — я положу в Railway `VK_AUDIENCE_SEGMENT_IDS`, "
+                f"и следующая кампания пойдёт точно на этих людей."
+            ),
+            parse_mode="Markdown",
+        )
+
 
 async def agent_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Вход в режим разговора с агентом-таргетологом (Phase 5.2).
