@@ -1420,53 +1420,17 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
-    # Phase 5.5 — фильтрация горячей аудитории по ЦА pomolimsy
-    # (женщины 41-58). Делаем перед CSV-выгрузкой и автозагрузкой.
+    # Phase 5.5 (исправлено 15.05 04:00): фильтр по ЦА убран как обязательный.
+    # Причина: у большинства VK-юзеров скрыт год рождения (формат D.M вместо
+    # D.M.YYYY), фильтр их отсеивал и от 17k оставалось 100 человек.
+    # Правильнее: отдаём всех горячих в VK Ads, а VK Ads сам сужает через
+    # targetings.age + sex в каждой конкретной кампании — у них больше данных
+    # и они узнают возраст по поведению.
+    #
+    # Если в будущем понадобится фильтр (например мы захотим выгружать
+    # сегмент сразу под конкретный пол) — есть src/targetolog/audience_filter.py,
+    # его можно подключить опционально через аргумент команды.
     target_audience_ids: list[int] = list(sorted(intersection.hot_users))
-    filter_stats_text = ""
-
-    if intersection.hot_users:
-        from src.targetolog.audience_filter import AudienceFilter, filter_audience
-
-        await update.message.reply_text(
-            f"🎯 Сужаю до ЦА (женщины 41-58)... запрашиваю профили "
-            f"{intersection.hot_users_count:,} человек.".replace(",", " "),
-        )
-
-        try:
-            async with VKAPIClient(service_token=settings.vk_api_service_token) as client:
-                profiles = await client.users_get_batch(
-                    list(intersection.hot_users),
-                    fields="sex,bdate",
-                )
-        except Exception as e:
-            logger.exception("users_get_batch failed")
-            await update.message.reply_text(
-                f"⚠️ Не удалось получить профили для фильтрации: "
-                f"`{type(e).__name__}: {e}`\n\n"
-                f"Продолжаю без фильтра — выгружу всех горячих как есть.",
-                parse_mode="Markdown",
-            )
-            profiles = []
-
-        if profiles:
-            matched_ids, stats = filter_audience(profiles, AudienceFilter())
-            target_audience_ids = matched_ids
-
-            matched_fmt = f"{stats.matched:,}".replace(",", " ")
-            input_fmt = f"{stats.total_input:,}".replace(",", " ")
-            no_bdate_fmt = f"{stats.skipped_no_bdate:,}".replace(",", " ")
-            wrong_sex_fmt = f"{stats.skipped_wrong_sex:,}".replace(",", " ")
-            wrong_age_fmt = f"{stats.skipped_wrong_age:,}".replace(",", " ")
-
-            filter_stats_text = (
-                f"🎯 *После фильтра ЦА:* {matched_fmt} из {input_fmt} "
-                f"({stats.matched_pct:.1f}%)\n"
-                f"  Отсеяно: пол ≠ женский — {wrong_sex_fmt}, "
-                f"возраст не 41-58 — {wrong_age_fmt}, "
-                f"скрыли ДР — {no_bdate_fmt}\n\n"
-            )
-            await update.message.reply_text(filter_stats_text, parse_mode="Markdown")
 
     # Phase 5.4 — формируем CSV для ручной загрузки в VK Ads.
     # VK Ads принимает обычный текстовый файл со списком user_id, по одному
@@ -1490,11 +1454,13 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             document=buf,
             filename=filename,
             caption=(
-                f"📤 *Целевая аудитория для VK Ads* — {hot_count_fmt} человек "
-                f"(женщины 41-58, в 2+ правосл. сообществах)\n\n"
-                f"Этот файл можно загрузить руками через UI кабинета "
-                f"(VK Ads → Аудитории → Создать → Из файла), либо бот "
-                f"сейчас попробует автоматически — если у нас 2000+ ID."
+                f"📤 *Горячая аудитория для VK Ads* — {hot_count_fmt} человек\n\n"
+                f"Подписаны на 2+ правосл. сообщества одновременно. "
+                f"Узкое сужение до женщин 41-58 произойдёт на стороне VK Ads "
+                f"через `targetings.age` + `targetings.sex` в самой кампании — "
+                f"у них больше данных для определения возраста.\n\n"
+                f"Если 2000+ — бот сейчас попробует автозагрузить, иначе "
+                f"можно загрузить файл руками (VK Ads → Аудитории → Создать → Из файла)."
             ),
             parse_mode="Markdown",
         )
