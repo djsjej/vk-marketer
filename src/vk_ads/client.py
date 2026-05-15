@@ -845,3 +845,115 @@ class VKAdsClient:
     async def update_budget(self, campaign_id: int, daily_budget_rub: int) -> None:
         """DEPRECATED — используй update_ad_plan_budget."""
         await self.update_ad_plan_budget(campaign_id, daily_budget_rub=daily_budget_rub)
+
+    # ============================================================
+    # Phase 5.4 — Ремаркетинг: создание Users Lists из горячих ID
+    # ============================================================
+    # API: POST /api/v3/remarketing/users_lists.json
+    # Документация (от Vizit'а 15.05.2026):
+    # https://ads.vk.com/doc/api/resource/RemarketingUsersLists
+    #
+    # Особенности:
+    # - Тело запроса — multipart/form-data, НЕ JSON
+    # - Поля: file (текстовый файл с ID, по одному на строку),
+    #         name (название), type='vk' (для VK user_id)
+    # - Минимум 2000 ID, максимум 5 000 000
+    # - В ответе — объект RemarketingUsersList со status='receiving'
+    # - Статус нужно опросить через GET /api/v3/.../{id} пока не станет 'ready'
+
+    async def create_remarketing_users_list(
+        self,
+        name: str,
+        user_ids: list[int],
+        list_type: str = "vk",
+    ) -> dict:
+        """Создаёт список пользователей для ремаркетинга и сразу загружает ID.
+
+        Args:
+            name: название списка (отображается в UI кабинета)
+            user_ids: ID пользователей VK (минимум 2000, максимум 5 000 000)
+            list_type: тип списка. 'vk' для VK ID, 'phones' для телефонов,
+                'emails' для email, и т.д. (см. документацию)
+
+        Returns:
+            dict с полями RemarketingUsersList объекта: id, status, name,
+            entries_count, type, и т.д. После создания status='receiving',
+            нужно ждать пока станет 'ready'.
+
+        Raises:
+            ValueError: если user_ids меньше 2000 или больше 5M
+            VKAdsAPIError: на ошибки API (включая бизнес-ошибки вроде
+                too_many_ids, not_enough_ids, invalid_uint)
+        """
+        if len(user_ids) < 2000:
+            raise ValueError(
+                f"VK Ads требует минимум 2000 ID для создания списка, "
+                f"передано {len(user_ids)}. Запусти /vk_audience full или "
+                f"добавь больших сообществ в seed."
+            )
+        if len(user_ids) > 5_000_000:
+            raise ValueError(
+                f"VK Ads ограничивает 5 000 000 ID, передано {len(user_ids)}."
+            )
+
+        # Файл — простой plain text с одним ID на строку
+        file_content = "\n".join(str(uid) for uid in user_ids).encode("utf-8")
+
+        token = await self._get_token()
+        url = "https://ads.vk.com/api/v3/remarketing/users_lists.json"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        # multipart/form-data — httpx сам сформирует правильный Content-Type
+        # с boundary'ем. Поле `file` нужно как (filename, content, mime).
+        files = {
+            "file": ("users.txt", file_content, "text/plain"),
+        }
+        data = {
+            "name": name,
+            "type": list_type,
+        }
+
+        logger.info(
+            f"VK Ads: создаю remarketing list '{name}' с {len(user_ids)} ID"
+        )
+
+        async with httpx.AsyncClient(timeout=60.0) as client:
+            response = await client.post(
+                url, headers=headers, files=files, data=data
+            )
+
+        if response.status_code != 200:
+            try:
+                err_body = response.json()
+            except Exception:
+                err_body = {"raw": response.text}
+            raise VKAdsAPIError(
+                f"VK Ads remarketing list create failed: HTTP "
+                f"{response.status_code}, body={err_body}"
+            )
+
+        result = response.json()
+        logger.info(
+            f"VK Ads: список создан, id={result.get('id')}, "
+            f"status={result.get('status')}, entries={result.get('entries_count')}"
+        )
+        return result
+
+    async def get_remarketing_users_list(self, list_id: int) -> dict:
+        """Получает текущее состояние remarketing-списка.
+
+        Используется чтобы опросить статус (receiving → mapped → ready).
+        """
+        token = await self._get_token()
+        url = f"https://ads.vk.com/api/v3/remarketing/users_lists/{list_id}.json"
+        headers = {"Authorization": f"Bearer {token}"}
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.get(url, headers=headers)
+
+        if response.status_code != 200:
+            raise VKAdsAPIError(
+                f"VK Ads get remarketing list failed: HTTP {response.status_code}"
+            )
+
+        return response.json()

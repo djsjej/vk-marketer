@@ -1432,7 +1432,8 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         filename = f"hot_audience_{timestamp}.csv"
         buf = io.BytesIO()
         # Сортируем для воспроизводимости
-        for uid in sorted(intersection.hot_users):
+        sorted_hot_users = sorted(intersection.hot_users)
+        for uid in sorted_hot_users:
             buf.write(f"{uid}\n".encode("utf-8"))
         buf.seek(0)
 
@@ -1442,14 +1443,78 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             filename=filename,
             caption=(
                 f"📤 *Горячая аудитория для VK Ads* — {hot_count_fmt} человек\n\n"
-                f"Что делать:\n"
-                f"1. Открой кабинет VK Ads → раздел *Аудитории*\n"
-                f"2. Нажми *Создать аудиторию* → выбери *Из файла*\n"
-                f"3. Загрузи этот файл (это `user_id`, по одному на строку)\n"
-                f"4. После создания сегмента — скопируй его ID\n"
-                f"5. Пришли мне ID — я положу в Railway `VK_AUDIENCE_SEGMENT_IDS`, "
-                f"и следующая кампания пойдёт точно на этих людей."
+                f"Этот файл можно загрузить руками через UI кабинета "
+                f"(VK Ads → Аудитории → Создать → Из файла), либо бот "
+                f"сейчас попробует автоматически — если у нас 2000+ ID "
+                f"(минимум который требует VK Ads API)."
             ),
+            parse_mode="Markdown",
+        )
+
+        # Phase 5.4 — автозагрузка в VK Ads через API
+        from src.vk_ads.client import VKAdsAPIError, VKAdsClient
+
+        if intersection.hot_users_count < 2000:
+            await update.message.reply_text(
+                f"⚠️ Горячих {hot_count_fmt}, а VK Ads API требует *минимум 2000* "
+                f"для создания сегмента. Автозагрузка пропущена — можно "
+                f"загрузить файл руками (он выше). Либо запусти "
+                f"`/vk_audience full` чтобы собрать всю аудиторию каждой "
+                f"группы — горячих будет на порядок больше.",
+                parse_mode="Markdown",
+            )
+            return
+
+        # Достаточно ID — пробуем автозагрузку
+        ads_client = VKAdsClient.from_settings()
+        if ads_client is None:
+            await update.message.reply_text(
+                "⚠️ VK Ads клиент не настроен (нет OAuth credentials). "
+                "Загрузи файл руками.",
+            )
+            return
+
+        list_name = f"Горячая аудитория {timestamp}"
+        await update.message.reply_text(
+            f"⏳ Автозагружаю в VK Ads как `{list_name}`...",
+            parse_mode="Markdown",
+        )
+
+        try:
+            result = await ads_client.create_remarketing_users_list(
+                name=list_name,
+                user_ids=sorted_hot_users,
+            )
+        except VKAdsAPIError as e:
+            await update.message.reply_text(
+                f"❌ VK Ads API отверг загрузку: `{e}`\n\n"
+                f"Можно загрузить файл руками (он выше).",
+                parse_mode="Markdown",
+            )
+            return
+        except Exception as e:
+            logger.exception("Auto-upload to VK Ads failed")
+            await update.message.reply_text(
+                f"❌ Не получилось автозагрузить: `{type(e).__name__}: {e}`\n\n"
+                f"Можно загрузить файл руками (он выше).",
+                parse_mode="Markdown",
+            )
+            return
+
+        list_id = result.get("id")
+        status = result.get("status", "?")
+        entries = result.get("entries_count", "?")
+
+        await update.message.reply_text(
+            f"✅ *Список создан в VK Ads*\n\n"
+            f"ID: `{list_id}`\n"
+            f"Загружено: {entries} ID\n"
+            f"Статус: `{status}` (обработка займёт несколько минут, "
+            f"потом станет `ready`)\n\n"
+            f"Что дальше — положи этот ID в Railway env "
+            f"`VK_AUDIENCE_SEGMENT_IDS` (через запятую если их уже "
+            f"несколько). После следующего деплоя бот будет рекламировать "
+            f"новые кампании именно на эту аудиторию.",
             parse_mode="Markdown",
         )
 
