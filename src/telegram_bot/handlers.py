@@ -1777,3 +1777,283 @@ async def _boba_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, te
             await update.message.reply_text(text_to_send, parse_mode="Markdown")
         except Exception:
             await update.message.reply_text(text_to_send)
+
+
+# ============================================================
+# Phase 5.8 (16.05.2026) — загрузка готового списка ID из TargetHunter
+# ============================================================
+#
+# Vizit использует TargetHunter (профессиональный инструмент парсинга VK)
+# для сбора горячей аудитории — наш собственный парсер уперлся в flood
+# control при больших объёмах. TargetHunter решает это через пул токенов.
+#
+# Workflow:
+# 1. Vizit в TargetHunter парсит подписчиков нужных правосл. сообществ
+#    с фильтрами (активные за 14 дней, состоят в 2+ групп, минус
+#    подписчики pomolimsy) — получает txt с user_id, по одному на строку
+# 2. В Telegram-боте вызывает /upload_audience
+# 3. Бот ожидает документ
+# 4. Vizit присылает .txt файл
+# 5. Бот парсит, валидирует (минимум 2000 ID для VK Ads),
+#    создаёт remarketing-сегмент через VKAdsClient.create_remarketing_users_list()
+# 6. Возвращает segment_id который можно использовать в VK_AUDIENCE_SEGMENT_IDS
+
+
+async def upload_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Запускает режим ожидания txt-файла с VK ID для загрузки в VK Ads.
+
+    Показывает инструкцию и ставит флаг ожидания файла в user_data.
+    Следующий .txt документ от Vizit'а будет обработан handle_audience_document.
+    """
+    args = context.args or []
+
+    # Опциональный аргумент — название будущего сегмента
+    segment_name = " ".join(args) if args else None
+
+    context.user_data["awaiting_audience_upload"] = True
+    context.user_data["audience_segment_name"] = segment_name
+
+    instruction = (
+        "📤 *Загрузка аудитории из TargetHunter*\n\n"
+        "Жду от тебя `.txt` файл со списком VK ID:\n"
+        "— один ID на строку\n"
+        "— минимум 2 000 ID (требование VK Ads)\n"
+        "— максимум 5 000 000 ID\n"
+        "— только числа, без пробелов и лишних символов\n\n"
+        "Это стандартный формат экспорта из TargetHunter "
+        "(выбор «Сохранить → Текстовый файл → ID»)."
+    )
+    if segment_name:
+        instruction += f"\n\nНазвание сегмента в VK Ads: *{segment_name}*"
+    else:
+        instruction += (
+            "\n\nНазвание сегмента будет автоматическое "
+            "(дата + размер). Если хочешь своё — отмени и запусти "
+            "`/upload_audience Моё название`."
+        )
+    instruction += "\n\nПросто отправь файл в этот чат. Или напиши «отмена» чтобы выйти."
+
+    await update.message.reply_text(instruction, parse_mode="Markdown")
+
+
+async def handle_audience_document(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Обрабатывает приходящий .txt файл когда стоит флаг ожидания.
+
+    Скачивает файл, парсит VK ID, создаёт remarketing-сегмент через
+    VKAdsClient.
+    """
+    from datetime import datetime
+
+    if not context.user_data.get("awaiting_audience_upload"):
+        # Не наш режим — игнорируем (документ мог прийти случайно)
+        return
+
+    document = update.message.document
+    if not document:
+        return
+
+    # Проверка имени файла — txt
+    file_name = document.file_name or ""
+    if not file_name.lower().endswith((".txt", ".csv")):
+        await update.message.reply_text(
+            f"❌ Ожидаю `.txt` или `.csv` файл, ты прислал `{file_name}`. "
+            f"Перезапусти через /upload_audience и пришли правильный формат.",
+            parse_mode="Markdown",
+        )
+        context.user_data["awaiting_audience_upload"] = False
+        return
+
+    # Размер файла — sanity check
+    if document.file_size and document.file_size > 100 * 1024 * 1024:
+        await update.message.reply_text(
+            f"❌ Файл слишком большой ({document.file_size / 1024 / 1024:.1f} MB). "
+            f"Максимум 100 MB. Если у тебя реально 5 миллионов ID — режь "
+            f"на несколько файлов."
+        )
+        context.user_data["awaiting_audience_upload"] = False
+        return
+
+    await update.message.reply_text(
+        f"📥 Получил `{file_name}` ({document.file_size or '?'} байт). Читаю...",
+        parse_mode="Markdown",
+    )
+
+    # Скачиваем содержимое файла
+    try:
+        tg_file = await document.get_file()
+        file_bytes = await tg_file.download_as_bytearray()
+        raw_text = bytes(file_bytes).decode("utf-8", errors="ignore")
+    except Exception as e:
+        logger.exception("Failed to download audience file")
+        await update.message.reply_text(
+            f"❌ Не смог скачать файл: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        context.user_data["awaiting_audience_upload"] = False
+        return
+
+    # Парсим строки в VK ID
+    user_ids, parse_stats = _parse_audience_file(raw_text)
+
+    if not user_ids:
+        await update.message.reply_text(
+            f"❌ В файле не нашёл ни одного валидного VK ID.\n"
+            f"Всего строк прочитано: {parse_stats['total_lines']}\n"
+            f"Невалидных строк: {parse_stats['invalid_lines']}\n\n"
+            f"Проверь что формат правильный (число на строку)."
+        )
+        context.user_data["awaiting_audience_upload"] = False
+        return
+
+    # Валидация количества под требования VK Ads
+    if len(user_ids) < 2000:
+        await update.message.reply_text(
+            f"⚠️ В файле {len(user_ids)} ID — это меньше минимума VK Ads "
+            f"(2000 для создания remarketing-сегмента).\n\n"
+            f"Решения:\n"
+            f"1) Спарси больше в TargetHunter (ослабь фильтр активности "
+            f"или добавь сообществ)\n"
+            f"2) Или дождись пока соберётся минимум 2000 и загрузи снова\n\n"
+            f"Загрузка отменена."
+        )
+        context.user_data["awaiting_audience_upload"] = False
+        return
+
+    if len(user_ids) > 5_000_000:
+        await update.message.reply_text(
+            f"⚠️ В файле {len(user_ids):,} ID — это больше максимума VK Ads "
+            f"(5 000 000). Раздели файл и загружай частями.".replace(",", " ")
+        )
+        context.user_data["awaiting_audience_upload"] = False
+        return
+
+    # Формируем название сегмента
+    custom_name = context.user_data.get("audience_segment_name")
+    if custom_name:
+        segment_name = custom_name
+    else:
+        today = datetime.now().strftime("%Y-%m-%d")
+        size_k = len(user_ids) // 1000
+        segment_name = f"TargetHunter {today} ({size_k}k IDs)"
+
+    # Прогресс-сообщение
+    await update.message.reply_text(
+        f"✅ Спарсил {len(user_ids):,} валидных VK ID.\n".replace(",", " ")
+        + f"Невалидных строк отброшено: {parse_stats['invalid_lines']}\n\n"
+        f"Создаю в VK Ads сегмент «{segment_name}»... "
+        f"(может занять до минуты на больших объёмах)",
+        parse_mode="Markdown" if "*" not in segment_name else None,
+    )
+
+    # Создание сегмента в VK Ads
+    try:
+        ads_client = VKAdsClient.from_settings()
+        if ads_client is None:
+            await update.message.reply_text(
+                "❌ VK Ads клиент не настроен. Проверь env vars в Railway."
+            )
+            context.user_data["awaiting_audience_upload"] = False
+            return
+
+        result = await ads_client.create_remarketing_users_list(
+            name=segment_name,
+            user_ids=user_ids,
+            list_type="vk",
+        )
+    except Exception as e:
+        logger.exception("VK Ads remarketing upload failed")
+        await update.message.reply_text(
+            f"❌ VK Ads вернул ошибку: `{type(e).__name__}: {e}`\n\n"
+            f"Возможные причины:\n"
+            f"— Истёк OAuth токен (проверь Railway env)\n"
+            f"— Лимит ремаркетинг-списков на кабинет\n"
+            f"— Сетевой сбой (попробуй ещё раз)",
+            parse_mode="Markdown",
+        )
+        context.user_data["awaiting_audience_upload"] = False
+        return
+
+    segment_id = result.get("id")
+    status = result.get("status", "unknown")
+    entries_count = result.get("entries_count", "?")
+
+    await update.message.reply_text(
+        f"✅ *Сегмент создан!*\n\n"
+        f"🆔 ID: `{segment_id}`\n"
+        f"📊 Размер: {entries_count} ID\n"
+        f"⏳ Статус: `{status}` (станет `ready` через несколько минут)\n\n"
+        f"*Что дальше:*\n"
+        f"1) Добавь ID в Railway env `VK_AUDIENCE_SEGMENT_IDS` "
+        f"(если там несколько — через запятую)\n"
+        f"2) Или передай его Бобе через `/boba` — он сможет использовать "
+        f"при создании кампании\n"
+        f"3) В UI VK Ads сегмент уже виден в разделе «Аудитории»",
+        parse_mode="Markdown",
+    )
+
+    # Снимаем флаг ожидания
+    context.user_data["awaiting_audience_upload"] = False
+    context.user_data.pop("audience_segment_name", None)
+
+    # Логируем для возможной диагностики
+    logger.info(
+        f"upload_audience: создан сегмент id={segment_id}, status={status}, "
+        f"entries={entries_count}, parse_stats={parse_stats}"
+    )
+
+
+def _parse_audience_file(raw_text: str) -> tuple[list[int], dict]:
+    """Парсит txt с VK ID, по одному на строку.
+
+    Принимает строки которые могут содержать:
+    - Чистый ID: "123456"
+    - С префиксом: "id123456" или "user_123456"
+    - С пробелами по краям
+    Игнорирует:
+    - Пустые строки
+    - Строки начинающиеся с '#' (комментарии)
+    - Невалидные строки (буквы, спецсимволы)
+
+    Returns:
+        (list of int ids, stats dict с total_lines/valid/invalid)
+    """
+    user_ids: list[int] = []
+    total_lines = 0
+    invalid_lines = 0
+
+    seen: set[int] = set()  # дедупликация
+
+    for line in raw_text.splitlines():
+        total_lines += 1
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+
+        # Убираем популярные префиксы
+        normalized = stripped
+        for prefix in ("id", "user_", "vk.com/id", "https://vk.com/id"):
+            if normalized.lower().startswith(prefix):
+                normalized = normalized[len(prefix):]
+                break
+
+        # Должно остаться чистое число
+        if not normalized.isdigit():
+            invalid_lines += 1
+            continue
+
+        uid = int(normalized)
+        if uid <= 0:
+            invalid_lines += 1
+            continue
+
+        if uid not in seen:
+            seen.add(uid)
+            user_ids.append(uid)
+
+    return user_ids, {
+        "total_lines": total_lines,
+        "valid": len(user_ids),
+        "invalid_lines": invalid_lines,
+    }

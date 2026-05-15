@@ -16,6 +16,7 @@ from src.telegram_bot.handlers import (
     biba_command,
     boba_command,
     clean_tokens_command,
+    handle_audience_document,
     handle_photo,
     handle_text,
     inspect_command,
@@ -25,6 +26,7 @@ from src.telegram_bot.handlers import (
     start_command,
     help_command,
     status_command,
+    upload_audience_command,
     vk_audience_command,
     vk_check_command,
     vk_orthodox_command,
@@ -87,6 +89,9 @@ def build_bot() -> Application:
         CommandHandler("vk_audience", vk_audience_command, filters=owner_filter)
     )
     application.add_handler(
+        CommandHandler("upload_audience", upload_audience_command, filters=owner_filter)
+    )
+    application.add_handler(
         CommandHandler("menu", menu_command, filters=owner_filter)
     )
 
@@ -96,6 +101,10 @@ def build_bot() -> Application:
     )
     application.add_handler(
         MessageHandler(filters.TEXT & ~filters.COMMAND & owner_filter, handle_text)
+    )
+    # Документы — для /upload_audience (txt-файлы с VK ID из TargetHunter)
+    application.add_handler(
+        MessageHandler(filters.Document.ALL & owner_filter, handle_audience_document)
     )
 
     # Inline-кнопки. ВАЖЕН ПОРЯДОК: pattern-обработчик menu_callback должен
