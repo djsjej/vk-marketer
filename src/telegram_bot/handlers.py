@@ -1671,8 +1671,13 @@ async def boba_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 async def _boba_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
-    """Один turn разговора с Бобой. Внутренний хелпер."""
+    """Один turn разговора с Бобой. Внутренний хелпер.
+
+    Phase 7 (15.05.2026): подключены tools — Боба может сам вызывать
+    функции (статус кабинета, парсинг, статистика, чтение/запись базы знаний).
+    """
     from src.agents import BOBA_PERSONA
+    from src.agents.boba_tools import BOBA_TOOLS_SCHEMA, execute_tool
     from src.agents.dialog import DialogAgent
 
     await update.message.chat.send_action(action="typing")
@@ -1681,7 +1686,12 @@ async def _boba_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, te
 
     try:
         agent = DialogAgent(persona=BOBA_PERSONA)
-        response = await agent.chat(user_message=text, history=history)
+        response = await agent.chat(
+            user_message=text,
+            history=history,
+            tools=BOBA_TOOLS_SCHEMA,
+            tool_executor=execute_tool,
+        )
     except Exception as e:
         logger.exception("Boba chat failed")
         await update.message.reply_text(

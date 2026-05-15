@@ -12,6 +12,7 @@ from src.agents.dialog import AgentResponse, DialogAgent
 def _make_mock_response(text: str) -> MagicMock:
     """Подделка ответа Anthropic API — один text block."""
     block = MagicMock()
+    block.type = "text"
     block.text = text
     response = MagicMock()
     response.content = [block]
@@ -47,12 +48,16 @@ async def test_chat_returns_agent_response():
 
     assert isinstance(response, AgentResponse)
     assert response.text == "Понял задачу, вот мой совет."
-    # История: user + assistant
+    # История: user + assistant (assistant content теперь список блоков)
     assert len(response.updated_history) == 2
     assert response.updated_history[0]["role"] == "user"
     assert response.updated_history[0]["content"] == "Какая стратегия лучше?"
     assert response.updated_history[1]["role"] == "assistant"
-    assert response.updated_history[1]["content"] == "Понял задачу, вот мой совет."
+    # content — список блоков с type=text
+    assistant_content = response.updated_history[1]["content"]
+    assert isinstance(assistant_content, list)
+    assert assistant_content[0]["type"] == "text"
+    assert assistant_content[0]["text"] == "Понял задачу, вот мой совет."
 
 
 @pytest.mark.asyncio
