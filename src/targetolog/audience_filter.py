@@ -33,6 +33,12 @@ class AudienceFilter:
     # Гео не фильтруем здесь — VK Ads сам делает гео в targetings.
     # Но можно при необходимости добавить country_id или city_ids.
 
+    # Фильтр активности — оставляем только тех кто заходил в VK за
+    # последние N дней. None = не фильтруем. 14 дней — компромисс между
+    # чистотой базы и сохранением неактивных но «живых» аккаунтов
+    # (православная аудитория 45-58 не каждый день заходит в VK).
+    min_last_seen_days: int | None = None
+
 
 @dataclass
 class FilterStats:
@@ -44,6 +50,7 @@ class FilterStats:
     skipped_wrong_sex: int
     skipped_wrong_age: int
     skipped_deactivated: int  # удалённые/заблокированные
+    skipped_inactive: int = 0  # last_seen старше N дней или отсутствует
 
     @property
     def matched_pct(self) -> float:
@@ -89,12 +96,12 @@ def filter_audience(
     profiles: list[dict],
     audience_filter: AudienceFilter,
 ) -> tuple[list[int], FilterStats]:
-    """Фильтрует список профилей по полу и возрасту.
+    """Фильтрует список профилей по полу, возрасту и активности.
 
     Args:
         profiles: результат VKAPIClient.users_get_batch — список dict
-            с полями id, sex, bdate (если доступен), city, может быть
-            deactivated.
+            с полями id, sex, bdate (если доступен), city, last_seen,
+            может быть deactivated.
         audience_filter: параметры фильтра. По умолчанию ЦА pomolimsy:
             женщины 41-58.
 
@@ -103,6 +110,8 @@ def filter_audience(
         - matched_ids — список user_id прошедших фильтр
         - stats — статистика что отсеялось почему
     """
+    import time
+
     matched_ids: list[int] = []
     stats = FilterStats(
         total_input=len(profiles),
@@ -111,7 +120,14 @@ def filter_audience(
         skipped_wrong_sex=0,
         skipped_wrong_age=0,
         skipped_deactivated=0,
+        skipped_inactive=0,
     )
+
+    # Порог last_seen (unix timestamp) — всё что старше отсеиваем.
+    # Если фильтр не задан — None, проверка не выполняется.
+    last_seen_threshold: int | None = None
+    if audience_filter.min_last_seen_days is not None:
+        last_seen_threshold = int(time.time()) - audience_filter.min_last_seen_days * 86400
 
     for profile in profiles:
         uid = profile.get("id")
@@ -122,6 +138,19 @@ def filter_audience(
         if profile.get("deactivated"):
             stats.skipped_deactivated += 1
             continue
+
+        # Активность (last_seen)
+        if last_seen_threshold is not None:
+            last_seen = profile.get("last_seen")
+            # last_seen может быть None, отсутствовать или быть dict {time, platform}
+            if not isinstance(last_seen, dict):
+                # Скрытый профиль или поле недоступно — считаем неактивным
+                stats.skipped_inactive += 1
+                continue
+            last_seen_time = last_seen.get("time")
+            if not isinstance(last_seen_time, int) or last_seen_time < last_seen_threshold:
+                stats.skipped_inactive += 1
+                continue
 
         # Пол
         if audience_filter.sex is not None:

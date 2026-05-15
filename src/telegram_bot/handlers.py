@@ -1389,6 +1389,38 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             results = await parse_groups_parallel(
                 client, get_seed_screen_names(), max_per_group=max_per_group
             )
+
+            # Считаем пересечения с min=2 (минимум 2 группы)
+            intersection = find_intersections(results, min_intersections=2)
+
+            # Phase 5.7 (15.05.2026, после Vizit вопроса про чистоту базы):
+            # Фильтруем горячих по активности и deactivated.
+            # Боба сказал: 14 дней — компромисс между чистотой и размером
+            # базы для православной ниши (45-58 не каждый день в VK).
+            # Также убираем banned/deleted аккаунты (мёртвый мусор).
+            from src.targetolog.audience_filter import AudienceFilter, filter_audience
+
+            hot_ids_raw = list(intersection.hot_users)
+            audience_filter_obj = AudienceFilter(
+                sex=None,           # пол не фильтруем (VK Ads сам сужает)
+                min_age=None,       # возраст не фильтруем (VK Ads сам)
+                max_age=None,
+                min_last_seen_days=14,  # 14 дней — фильтр активности
+            )
+
+            await update.message.reply_text(
+                f"🧹 Чищу базу: убираю мёртвые и неактивные аккаунты "
+                f"(не заходили в VK 14+ дней)... "
+                f"Запрашиваю профили для {len(hot_ids_raw)} ID..."
+            )
+
+            # users.get с полями: deactivated + last_seen
+            profiles = await client.users_get_batch(
+                user_ids=hot_ids_raw,
+                fields="deactivated,last_seen",
+            )
+
+            filtered_ids, filter_stats = filter_audience(profiles, audience_filter_obj)
     except Exception as e:
         logger.exception("vk_audience parse failed")
         await update.message.reply_text(
@@ -1396,9 +1428,6 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
             parse_mode="Markdown",
         )
         return
-
-    # Считаем пересечения с min=2 (минимум 2 группы)
-    intersection = find_intersections(results, min_intersections=2)
 
     # Сводка по группам
     lines = ["📊 *Результаты парсинга:*\n"]
@@ -1425,7 +1454,7 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     pct = (hot / total * 100) if total else 0
 
     lines.append("")
-    lines.append("🔥 *Пересечения:*")
+    lines.append("🔥 *Пересечения (до фильтрации):*")
     lines.append(f"Всего уникальных людей: {total_fmt}")
     lines.append(f"Из них в 2+ группах одновременно: *{hot_fmt}* ({pct:.1f}%)")
     lines.append("")
@@ -1436,10 +1465,19 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         count_fmt = f"{count:,}".replace(",", " ")
         lines.append(f"  в {n_groups} группах: {count_fmt} чел.")
 
+    # Phase 5.7 — статистика фильтрации по активности
+    lines.append("")
+    lines.append("🧹 *После чистки базы (фильтр 14 дней + deactivated):*")
+    matched_fmt = f"{filter_stats.matched:,}".replace(",", " ")
+    deact_fmt = f"{filter_stats.skipped_deactivated:,}".replace(",", " ")
+    inact_fmt = f"{filter_stats.skipped_inactive:,}".replace(",", " ")
+    lines.append(f"✅ Чистых активных: *{matched_fmt}* ({filter_stats.matched_pct:.1f}%)")
+    lines.append(f"  убрано banned/deleted: {deact_fmt}")
+    lines.append(f"  убрано неактивных 14+ дней: {inact_fmt}")
+
     lines.append("")
     lines.append(
-        "_Следующий шаг (Phase 5.3) — автовыгрузка горячих в VK Ads "
-        "как сегмент для рекламы._"
+        "_Следующий шаг — автовыгрузка чистой базы в VK Ads как сегмент._"
     )
 
     text = "\n".join(lines)
@@ -1448,17 +1486,8 @@ async def vk_audience_command(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     await update.message.reply_text(text, parse_mode="Markdown")
 
-    # Phase 5.5 (исправлено 15.05 04:00): фильтр по ЦА убран как обязательный.
-    # Причина: у большинства VK-юзеров скрыт год рождения (формат D.M вместо
-    # D.M.YYYY), фильтр их отсеивал и от 17k оставалось 100 человек.
-    # Правильнее: отдаём всех горячих в VK Ads, а VK Ads сам сужает через
-    # targetings.age + sex в каждой конкретной кампании — у них больше данных
-    # и они узнают возраст по поведению.
-    #
-    # Если в будущем понадобится фильтр (например мы захотим выгружать
-    # сегмент сразу под конкретный пол) — есть src/targetolog/audience_filter.py,
-    # его можно подключить опционально через аргумент команды.
-    target_audience_ids: list[int] = list(sorted(intersection.hot_users))
+    # Phase 5.7 — используем отфильтрованный список (а не сырой intersection.hot_users)
+    target_audience_ids: list[int] = sorted(filtered_ids)
 
     # Phase 5.4 — формируем CSV для ручной загрузки в VK Ads.
     # VK Ads принимает обычный текстовый файл со списком user_id, по одному

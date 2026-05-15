@@ -104,3 +104,87 @@ def test_filter_empty_input():
     assert stats.total_input == 0
     assert stats.matched == 0
     assert stats.matched_pct == 0.0
+
+
+# ============================================================
+# Phase 5.7 — фильтр по last_seen (активность)
+# ============================================================
+
+import time
+
+
+def _ago_seconds(seconds: int) -> int:
+    """Возвращает unix timestamp N секунд назад."""
+    return int(time.time()) - seconds
+
+
+def test_filter_last_seen_keeps_recent():
+    """Активные пользователи (last_seen в пределах N дней) проходят."""
+    profiles = [
+        # Был онлайн 5 дней назад — проходит (порог 14 дней)
+        {"id": 1, "last_seen": {"time": _ago_seconds(5 * 86400)}},
+        # Был онлайн вчера — проходит
+        {"id": 2, "last_seen": {"time": _ago_seconds(1 * 86400)}},
+    ]
+    flt = AudienceFilter(sex=None, min_age=None, max_age=None, min_last_seen_days=14)
+    matched, stats = filter_audience(profiles, flt)
+
+    assert set(matched) == {1, 2}
+    assert stats.skipped_inactive == 0
+
+
+def test_filter_last_seen_drops_inactive():
+    """Пользователи которых не было N+ дней — отсеиваются."""
+    profiles = [
+        # Был онлайн 30 дней назад — отсеивается (порог 14)
+        {"id": 1, "last_seen": {"time": _ago_seconds(30 * 86400)}},
+        # Был онлайн 100 дней назад — отсеивается
+        {"id": 2, "last_seen": {"time": _ago_seconds(100 * 86400)}},
+    ]
+    flt = AudienceFilter(sex=None, min_age=None, max_age=None, min_last_seen_days=14)
+    matched, stats = filter_audience(profiles, flt)
+
+    assert matched == []
+    assert stats.skipped_inactive == 2
+
+
+def test_filter_last_seen_missing_field_treated_inactive():
+    """Если last_seen отсутствует (скрытый профиль) — считаем неактивным."""
+    profiles = [
+        {"id": 1},  # вообще нет last_seen
+        {"id": 2, "last_seen": None},  # last_seen=None
+        {"id": 3, "last_seen": {}},  # есть, но без time
+    ]
+    flt = AudienceFilter(sex=None, min_age=None, max_age=None, min_last_seen_days=14)
+    matched, stats = filter_audience(profiles, flt)
+
+    assert matched == []
+    assert stats.skipped_inactive == 3
+
+
+def test_filter_last_seen_disabled_when_none():
+    """Если min_last_seen_days=None — фильтр не применяется."""
+    profiles = [
+        {"id": 1, "last_seen": {"time": _ago_seconds(365 * 86400)}},  # год назад
+        {"id": 2},  # нет last_seen
+    ]
+    flt = AudienceFilter(sex=None, min_age=None, max_age=None, min_last_seen_days=None)
+    matched, stats = filter_audience(profiles, flt)
+
+    assert set(matched) == {1, 2}
+    assert stats.skipped_inactive == 0
+
+
+def test_filter_deactivated_priority_over_inactive():
+    """deactivated проверяется ПЕРЕД last_seen — это правильнее
+    статистически (бан/удаление более важная категория)."""
+    profiles = [
+        # deactivated + старый last_seen — должен попасть в deactivated
+        {"id": 1, "deactivated": "banned", "last_seen": {"time": _ago_seconds(100 * 86400)}},
+    ]
+    flt = AudienceFilter(sex=None, min_age=None, max_age=None, min_last_seen_days=14)
+    matched, stats = filter_audience(profiles, flt)
+
+    assert matched == []
+    assert stats.skipped_deactivated == 1
+    assert stats.skipped_inactive == 0  # НЕ учтён в inactive
