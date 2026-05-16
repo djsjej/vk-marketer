@@ -1985,21 +1985,52 @@ async def handle_audience_document(
         context.user_data["awaiting_audience_upload"] = False
         return
 
-    segment_id = result.get("id")
+    users_list_id = result.get("id")
     status = result.get("status", "unknown")
     entries_count = result.get("entries_count", "?")
 
+    # Phase 5.10: после создания users_list — создаём Segment (Аудиторию)
+    # для использования в targetings кампании. Это два разных объекта в
+    # VK Ads (RemarketingUsersList vs Segment), что не было очевидно.
+    # Подробности — см. create_audience_segment_from_users_list в client.py.
     await update.message.reply_text(
-        f"✅ *Сегмент создан!*\n\n"
-        f"🆔 ID: `{segment_id}`\n"
-        f"📊 Размер: {entries_count} ID\n"
-        f"⏳ Статус: `{status}` (станет `ready` через несколько минут)\n\n"
+        f"✅ Список пользователей создан (id={users_list_id}).\n"
+        f"🔄 Создаю Аудиторию (Segment) на его основе..."
+    )
+
+    try:
+        segment_result = await ads_client.create_audience_segment_from_users_list(
+            name=segment_name,
+            users_list_id=int(users_list_id),
+        )
+    except Exception as e:
+        logger.exception("Segment creation failed after users_list")
+        await update.message.reply_text(
+            f"⚠️ Список создан (`{users_list_id}`), но Аудитория не создалась: "
+            f"`{type(e).__name__}: {e}`\n\n"
+            f"Создай Аудиторию вручную:\n"
+            f"`/audience_from_list {users_list_id} {segment_name}`\n\n"
+            f"Или в UI VK Ads → вкладка «Аудитории» → «Создать» → "
+            f"выбери Список пользователей.",
+            parse_mode="Markdown",
+        )
+        context.user_data["awaiting_audience_upload"] = False
+        return
+
+    segment_id = segment_result.get("id")
+
+    await update.message.reply_text(
+        f"✅ *Готово!*\n\n"
+        f"📋 Список пользователей: `{users_list_id}` ({entries_count} ID)\n"
+        f"🎯 *Аудитория (Segment): `{segment_id}`* ← это для кампаний\n"
+        f"⏳ Status списка: `{status}` (через несколько минут станет `ready`)\n\n"
         f"*Что дальше:*\n"
-        f"1) Добавь ID в Railway env `VK_AUDIENCE_SEGMENT_IDS` "
+        f"1) Добавь в Railway env: `VK_AUDIENCE_SEGMENT_IDS={segment_id}` "
         f"(если там несколько — через запятую)\n"
-        f"2) Или передай его Бобе через `/boba` — он сможет использовать "
-        f"при создании кампании\n"
-        f"3) В UI VK Ads сегмент уже виден в разделе «Аудитории»",
+        f"2) Передеплой подхватит автоматически\n"
+        f"3) Используй в кампаниях через `/launch_test` или передай Бобе через `/boba`\n\n"
+        f"_Примечание: для targetings в кампании нужен ID Аудитории "
+        f"({segment_id}), не ID Списка ({users_list_id}). Это разные сущности_",
         parse_mode="Markdown",
     )
 
@@ -2007,10 +2038,10 @@ async def handle_audience_document(
     context.user_data["awaiting_audience_upload"] = False
     context.user_data.pop("audience_segment_name", None)
 
-    # Логируем для возможной диагностики
+    # Логируем
     logger.info(
-        f"upload_audience: создан сегмент id={segment_id}, status={status}, "
-        f"entries={entries_count}, parse_stats={parse_stats}"
+        f"upload_audience: users_list={users_list_id} ({entries_count} IDs), "
+        f"segment={segment_id}, parse_stats={parse_stats}"
     )
 
 
@@ -2261,3 +2292,124 @@ async def handle_smoke_test_photo(
         f"banners={banner_count}, segment=80507749"
     )
     return True
+
+
+# ============================================================
+# Phase 5.10 (16.05.2026) — команда /audience_from_list
+# ============================================================
+#
+# Найдена архитектурная особенность VK Ads:
+# RemarketingUsersList ≠ Segment (Аудитория). В targetings кампании
+# нужен ID Segment, не users_list_id. Это была причина unallowed_value
+# при первом запуске smoke test.
+#
+# /audience_from_list <users_list_id> [название] — создаёт Segment
+# с привязкой к существующему users_list. Возвращает segment_id для
+# использования в VK_AUDIENCE_SEGMENT_IDS.
+#
+# Для НОВЫХ загрузок (через /upload_audience) — сегмент создаётся
+# автоматически после users_list (см. Phase 5.10b).
+
+
+async def audience_from_list_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Создаёт Segment (Аудиторию) из существующего RemarketingUsersList.
+
+    Использование:
+        /audience_from_list <users_list_id> [название]
+
+    Пример:
+        /audience_from_list 80507749 TargetHunter православные горячие
+
+    Если название не указано — сгенерируется из ID и даты.
+    """
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "📖 *Использование:*\n"
+            "`/audience_from_list <users_list_id> [название]`\n\n"
+            "Например: `/audience_from_list 80507749 TargetHunter горячие`\n\n"
+            "Команда создаёт Аудиторию (Segment) на основе существующего "
+            "Списка пользователей. Возвращает `segment_id`, который нужно "
+            "прописать в Railway env `VK_AUDIENCE_SEGMENT_IDS` для "
+            "использования в кампаниях.",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Парсим users_list_id
+    try:
+        users_list_id = int(args[0])
+    except ValueError:
+        await update.message.reply_text(
+            f"❌ Первый аргумент должен быть числом (users_list_id), "
+            f"передано: `{args[0]}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Название из остальных аргументов или auto
+    if len(args) >= 2:
+        segment_name = " ".join(args[1:])
+    else:
+        from datetime import datetime
+        segment_name = (
+            f"Audience from list {users_list_id} "
+            f"({datetime.now().strftime('%Y-%m-%d %H:%M')})"
+        )
+
+    await update.message.reply_text(
+        f"🔄 Создаю Аудиторию из Списка пользователей `{users_list_id}`...\n"
+        f"Название: `{segment_name}`",
+        parse_mode="Markdown",
+    )
+
+    # Создаём segment
+    try:
+        from src.vk_ads.client import VKAdsClient
+
+        ads_client = VKAdsClient.from_settings()
+        if ads_client is None:
+            await update.message.reply_text(
+                "❌ VK Ads клиент не настроен — проверь OAuth env в Railway."
+            )
+            return
+
+        result = await ads_client.create_audience_segment_from_users_list(
+            name=segment_name,
+            users_list_id=users_list_id,
+        )
+    except Exception as e:
+        logger.exception("create_audience_segment_from_users_list failed")
+        await update.message.reply_text(
+            f"❌ Не смог создать аудиторию: `{type(e).__name__}: {e}`\n\n"
+            f"Возможные причины:\n"
+            f"— users_list_id `{users_list_id}` не существует в кабинете\n"
+            f"— Истёк OAuth токен VK Ads\n"
+            f"— Сегмент с таким же именем уже есть (попробуй другое название)\n"
+            f"— API v2 не подходит — нужно v3 (пришли ошибку, доработаю)",
+            parse_mode="Markdown",
+        )
+        return
+
+    segment_id = result.get("id")
+
+    await update.message.reply_text(
+        f"✅ *Аудитория создана!*\n\n"
+        f"🆔 Segment ID: `{segment_id}`\n"
+        f"📝 Название: {result.get('name')}\n"
+        f"🔗 Источник: users_list `{users_list_id}` (619k ID если это наш TargetHunter)\n\n"
+        f"*Что дальше:*\n"
+        f"1. Открой Railway → Variables\n"
+        f"2. Замени значение на: `VK_AUDIENCE_SEGMENT_IDS={segment_id}` "
+        f"(сейчас там users_list_id, нужен segment_id)\n"
+        f"3. Сохрани → подожди передеплой (~2 мин)\n"
+        f"4. Запусти `/launch_test` снова — должно пройти",
+        parse_mode="Markdown",
+    )
+
+    logger.info(
+        f"audience_from_list: создан Segment id={segment_id}, "
+        f"users_list={users_list_id}, name={segment_name}"
+    )

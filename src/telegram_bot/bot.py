@@ -13,6 +13,7 @@ from telegram.ext import (
 from src.config import settings
 from src.telegram_bot.handlers import (
     agent_command,
+    audience_from_list_command,
     biba_command,
     boba_command,
     clean_tokens_command,
@@ -94,6 +95,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("launch_test", launch_test_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("audience_from_list", audience_from_list_command, filters=owner_filter)
     )
     application.add_handler(
         CommandHandler("menu", menu_command, filters=owner_filter)

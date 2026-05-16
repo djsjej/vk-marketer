@@ -861,6 +861,102 @@ class VKAdsClient:
     # - В ответе — объект RemarketingUsersList со status='receiving'
     # - Статус нужно опросить через GET /api/v3/.../{id} пока не станет 'ready'
 
+    async def create_audience_segment_from_users_list(
+        self,
+        name: str,
+        users_list_id: int,
+    ) -> dict:
+        """Создать аудиторию (Segment) с привязкой к users_list одним POST.
+
+        Phase 5.10 (16.05.2026): VK Ads разделяет на 2 объекта:
+        - RemarketingUsersList — только список ID (через create_remarketing_users_list)
+        - Segment — аудитория для targetings, может быть привязана к одному или
+          нескольким users_lists/counters/lookalike
+
+        В targetings.segments кампании идёт ID Segment, не users_list.
+        Это была причина ошибки 'unallowed_value' при первом запуске smoke test
+        16.05.2026 — мы передавали users_list_id вместо segment_id.
+
+        Документация: https://ads.vk.com/doc/api/method/Segments/POST_segments
+        Endpoint v2: /api/v2/remarketing/segments.json
+        (v3 для segments не подтверждён, используем v2 как в доке)
+
+        Args:
+            name: название аудитории (отображается в UI кабинета во вкладке
+                «Аудитории», не путать с «Списками пользователей»)
+            users_list_id: ID существующего RemarketingUsersList (создан через
+                create_remarketing_users_list). Сегмент будет содержать всех
+                пользователей этого списка.
+
+        Returns:
+            dict с полями Segment: id, name, pass_condition, created, updated.
+            Поле `id` — это и есть segment_id который идёт в targetings.segments
+            кампании.
+
+        Raises:
+            VKAdsAPIError: на ошибки API (включая validation_failed,
+                segment_limit_exceeded, unknown_source).
+        """
+        # pass_condition: 1 означает что пользователь должен быть в 1 из
+        # связанных источников. У нас один users_list — этого достаточно.
+        # Если бы привязывали несколько источников и хотели пересечение —
+        # ставили бы pass_condition: N (число источников).
+        payload = {
+            "name": name,
+            "pass_condition": 1,
+            "relations": [
+                {
+                    "object_type": "remarketing_users_list",
+                    "params": {
+                        "source_id": users_list_id,
+                        "type": "positive",  # включаем (не negative)
+                    },
+                }
+            ],
+        }
+
+        token = await self._get_token()
+        # API v2 для segments — подтверждено документацией от Vizit'а 16.05.2026.
+        # Наш users_list создан через v3, но v2 segments принимает v3 user_list_id
+        # (если внутри VK Ads это одна и та же база). Если не пройдёт — нужно
+        # попробовать /api/v3/remarketing/segments.json.
+        url = "https://ads.vk.com/api/v2/remarketing/segments.json"
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Content-Type": "application/json",
+        }
+
+        logger.info(
+            f"VK Ads: создаю Segment '{name}' с привязкой к "
+            f"users_list_id={users_list_id}"
+        )
+
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(url, headers=headers, json=payload)
+
+        if response.status_code not in (200, 201):
+            try:
+                err_body = response.json()
+            except Exception:
+                err_body = {"raw": response.text}
+            raise VKAdsAPIError(
+                f"VK Ads segment create failed: HTTP "
+                f"{response.status_code}, body={err_body}"
+            )
+
+        result = response.json()
+        segment_id = int(result.get("id", 0))
+        if not segment_id:
+            raise VKAdsAPIError(
+                f"VK Ads вернул сегмент без id: {result}"
+            )
+
+        logger.info(
+            f"VK Ads: Segment создан, id={segment_id}, "
+            f"name={result.get('name')}"
+        )
+        return result
+
     async def create_remarketing_users_list(
         self,
         name: str,
