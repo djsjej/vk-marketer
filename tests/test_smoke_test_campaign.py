@@ -72,7 +72,7 @@ async def test_smoke_test_creates_campaign_with_2_banners():
     """С 2 AdCopy создаётся один ad_group с 2 баннерами для A/B."""
     mock_client = MagicMock()
     mock_client.get_or_register_url = AsyncMock(return_value={"id": 999})
-    mock_client.upload_media = AsyncMock(side_effect=[1001, 1002])  # image, icon
+    mock_client.upload_image = AsyncMock(side_effect=[1001, 1002])  # image, icon
     mock_client.create_ad_plan = AsyncMock(return_value={
         "id": 50000,
         "campaigns": [{
@@ -114,7 +114,7 @@ async def test_smoke_test_uses_segments_from_settings():
     """Если в settings задан vk_audience_segment_ids — добавляется в targetings."""
     mock_client = MagicMock()
     mock_client.get_or_register_url = AsyncMock(return_value={"id": 999})
-    mock_client.upload_media = AsyncMock(side_effect=[1001, 1002])
+    mock_client.upload_image = AsyncMock(side_effect=[1001, 1002])
     mock_client.create_ad_plan = AsyncMock(return_value={
         "id": 50000,
         "campaigns": [{"id": 60000, "banners": [{"id": 70001}]}],
@@ -144,7 +144,7 @@ async def test_smoke_test_default_age_41_58():
     """По умолчанию age_list 41-58 (наша ЦА)."""
     mock_client = MagicMock()
     mock_client.get_or_register_url = AsyncMock(return_value={"id": 999})
-    mock_client.upload_media = AsyncMock(side_effect=[1001, 1002])
+    mock_client.upload_image = AsyncMock(side_effect=[1001, 1002])
     mock_client.create_ad_plan = AsyncMock(return_value={
         "id": 50000,
         "campaigns": [{"id": 60000, "banners": [{"id": 70001}]}],
@@ -170,7 +170,7 @@ async def test_smoke_test_default_female():
     """По умолчанию sex=['female'] (наша ЦА)."""
     mock_client = MagicMock()
     mock_client.get_or_register_url = AsyncMock(return_value={"id": 999})
-    mock_client.upload_media = AsyncMock(side_effect=[1001, 1002])
+    mock_client.upload_image = AsyncMock(side_effect=[1001, 1002])
     mock_client.create_ad_plan = AsyncMock(return_value={
         "id": 50000,
         "campaigns": [{"id": 60000, "banners": [{"id": 70001}]}],
@@ -196,7 +196,7 @@ async def test_smoke_test_default_package_3127():
     """По умолчанию package_id=3127 (Написать сообщение)."""
     mock_client = MagicMock()
     mock_client.get_or_register_url = AsyncMock(return_value={"id": 999})
-    mock_client.upload_media = AsyncMock(side_effect=[1001, 1002])
+    mock_client.upload_image = AsyncMock(side_effect=[1001, 1002])
     mock_client.create_ad_plan = AsyncMock(return_value={
         "id": 50000,
         "campaigns": [{"id": 60000, "banners": [{"id": 70001}]}],

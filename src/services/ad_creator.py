@@ -814,15 +814,11 @@ class AdCreator:
             image_600_bytes = _bytes_at(600)
             icon_256_bytes = _bytes_at(256)
 
-            image_600_id = await self.vk.upload_media(
-                image_600_bytes,
-                content_type="image/jpeg",
-                filename="image_600x600.jpg",
+            image_600_id = await self.vk.upload_image(
+                image_600_bytes, "image_600x600.jpg"
             )
-            icon_256_id = await self.vk.upload_media(
-                icon_256_bytes,
-                content_type="image/jpeg",
-                filename="icon_256x256.jpg",
+            icon_256_id = await self.vk.upload_image(
+                icon_256_bytes, "icon_256x256.jpg"
             )
         except Exception as e:
             raise AdCreatorError(f"Не смог обработать/загрузить картинку: {e}") from e
