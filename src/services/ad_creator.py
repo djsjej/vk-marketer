@@ -701,6 +701,255 @@ class AdCreator:
             raw=result,
         )
 
+    async def create_smoke_test_campaign(
+        self,
+        *,
+        image_bytes: bytes,
+        copies: list[AdCopy],
+        community_url: str,
+        daily_budget_rub: int = 500,
+        days_duration: int = 3,
+        age_min: int = 41,
+        age_max: int = 58,
+        sex: list[str] | None = None,
+        geo_regions: list[int] | None = None,
+        package_id: int = 3127,
+        campaign_name: str | None = None,
+        image_filename: str = "smoke_test.jpg",
+    ) -> CampaignSummary:
+        """Smoke test — одна кампания, одна ad_group, 1-2 баннера для A/B.
+
+        Phase 5.9 (16.05.2026 утром): отдельный метод для технической
+        проверки цепочки на минимальном бюджете. Отличия от
+        create_age_split_campaign:
+
+        - **Одна ad_group** на весь возрастной диапазон 41-58
+          (не 5 групп split). Причина: сегмент 80507749 уже сегментирован
+          (TargetHunter горячие 619k), дробить узкую базу на 5 ещё более
+          узких = размазать без статзначимости.
+        - **N баннеров в одной ad_group** для A/B текстов (Боба:
+          «один адсет, A/B на текстах внутри»).
+        - **Один общий бюджет** на день (не на группу).
+        - **Default package 3127** «Написать сообщение» — цель smoke test
+          собрать сообщения с именами для поминовения.
+        - Сегмент 80507749 подключается **автоматически через env**
+          VK_AUDIENCE_SEGMENT_IDS (как в create_age_split_campaign).
+
+        Args:
+            image_bytes: байты изображения (обычно JPEG из Telegram).
+            copies: 1-2 объекта AdCopy для A/B. Каждый = отдельный баннер.
+            community_url: https://vk.com/pomolimsy.
+            daily_budget_rub: дневной бюджет в рублях (минимум 100).
+            days_duration: длительность кампании в днях (для smoke test = 3).
+            age_min, age_max: возраст ЦА (по умолчанию 41-58).
+            sex: ['female'] по умолчанию.
+            geo_regions: [188] (Россия) по умолчанию.
+            package_id: 3127 («Написать сообщение») по умолчанию.
+            campaign_name: кастомное имя кампании в кабинете VK Ads.
+            image_filename: имя файла для multipart upload.
+
+        Returns:
+            CampaignSummary с ad_plan_id, ad_group_ids, banner_ids.
+
+        Raises:
+            AdCreatorError: на любой провал.
+        """
+        # Валидация
+        if not copies:
+            raise AdCreatorError("copies пустой — нужен хотя бы один AdCopy")
+        if len(copies) > 4:
+            raise AdCreatorError(
+                f"Слишком много креативов ({len(copies)}). Для smoke test "
+                f"максимум 4 — иначе бюджет 500₽/день не наберёт статзначимости "
+                f"на каждом."
+            )
+        if daily_budget_rub < 100:
+            raise AdCreatorError(
+                f"Дневной бюджет {daily_budget_rub}₽ меньше минимума VK (100₽/день)"
+            )
+
+        # Defaults
+        if sex is None:
+            sex = ["female"]
+        if geo_regions is None:
+            geo_regions = [188]  # Россия
+        if campaign_name is None:
+            from datetime import datetime
+            campaign_name = (
+                f"smoke_test {datetime.now().strftime('%Y-%m-%d')} "
+                f"({len(copies)} креатива)"
+            )
+
+        # 1. Регистрируем URL в кабинете
+        logger.info(f"[smoke 1/3] Регистрирую URL: {community_url}")
+        try:
+            url_info = await self.vk.get_or_register_url(community_url)
+            internal_url_id = int(url_info["id"])
+        except Exception as e:
+            raise AdCreatorError(
+                f"Не смог зарегистрировать URL {community_url}: {e}"
+            ) from e
+
+        # 2. Готовим картинку (icon_256 + image_600 — обе обязательны)
+        logger.info(f"[smoke 2/3] Обрабатываю и загружаю картинку ({len(image_bytes)} байт)")
+        try:
+            from io import BytesIO
+            from PIL import Image
+
+            src = Image.open(BytesIO(image_bytes))
+            if src.mode != "RGB":
+                src = src.convert("RGB")
+            w, h = src.size
+            side = min(w, h)
+            left = (w - side) // 2
+            top = (h - side) // 2
+            src_square = src.crop((left, top, left + side, top + side))
+
+            def _bytes_at(size: int) -> bytes:
+                resized = src_square.resize((size, size), Image.Resampling.LANCZOS)
+                buf = BytesIO()
+                resized.save(buf, format="JPEG", quality=90)
+                return buf.getvalue()
+
+            image_600_bytes = _bytes_at(600)
+            icon_256_bytes = _bytes_at(256)
+
+            image_600_id = await self.vk.upload_media(
+                image_600_bytes,
+                content_type="image/jpeg",
+                filename="image_600x600.jpg",
+            )
+            icon_256_id = await self.vk.upload_media(
+                icon_256_bytes,
+                content_type="image/jpeg",
+                filename="icon_256x256.jpg",
+            )
+        except Exception as e:
+            raise AdCreatorError(f"Не смог обработать/загрузить картинку: {e}") from e
+
+        # 3. Targetings — единые для всех баннеров (один ad_group)
+        from src.config import settings as _settings
+
+        age_list = list(range(age_min, age_max + 1))
+        audience_segments = _settings.vk_audience_segment_ids_parsed
+
+        ad_group_targetings: dict = {
+            "geo": {"regions": geo_regions},
+            "sex": sex,
+            "age": {"age_list": age_list},
+            "interests_soc_dem": [
+                27137,  # Духовный рост и самовыражение
+                10186,  # Замужем
+                12920,  # Есть дети
+            ],
+        }
+        if audience_segments:
+            ad_group_targetings["segments"] = audience_segments
+            logger.info(
+                f"[smoke] Подключаю remarketing-сегменты: {audience_segments}"
+            )
+        else:
+            logger.warning(
+                "[smoke] VK_AUDIENCE_SEGMENT_IDS не задан в env — кампания "
+                "пойдёт на широкую ЦА без сегмента. Это ОК для теста UI."
+            )
+
+        # 4. Баннеры — по одному на AdCopy
+        banners = []
+        for idx, copy in enumerate(copies, start=1):
+            banner_label = f"A" if idx == 1 else f"B" if idx == 2 else str(idx)
+            banners.append({
+                "name": f"smoke {banner_label} | {copy.title[:30]}",
+                "urls": {"primary": {"id": internal_url_id}},
+                "textblocks": {
+                    "title_40_vkads": {"text": copy.title[:40]},
+                    "text_2000": {"text": copy.text[:2000]},
+                    "about_company_115": {"text": copy.about[:115]},
+                    "cta_community_vk": {"text": copy.cta},
+                },
+                "content": {
+                    "icon_256x256": {"id": icon_256_id},
+                    "image_600x600": {"id": image_600_id},
+                },
+            })
+
+        # 5. ad_group
+        from datetime import datetime, timedelta
+        date_start = datetime.now().strftime("%Y-%m-%d")
+        date_end = (datetime.now() + timedelta(days=days_duration)).strftime("%Y-%m-%d")
+
+        ad_group = {
+            "name": f"smoke ж{age_min}-{age_max} сегмент",
+            "targetings": ad_group_targetings,
+            "max_price": 0,
+            "budget_limit_day": daily_budget_rub,
+            "budget_limit": None,
+            "date_start": date_start,
+            "date_end": None,
+            "age_restrictions": "0+",
+            "package_id": package_id,
+            "banners": banners,
+        }
+
+        # 6. ad_plan
+        ad_plan_payload = {
+            "name": campaign_name,
+            "status": "active",
+            "date_start": date_start,
+            "date_end": date_end,
+            "autobidding_mode": "max_goals",
+            "budget_limit_day": daily_budget_rub,
+            "budget_limit": daily_budget_rub * days_duration,  # общий лимит
+            "max_price": 0,
+            "objective": "socialengagement",
+            "ad_object_type": "url",
+            "ad_object_id": internal_url_id,
+            "ad_groups": [ad_group],  # одна группа
+        }
+
+        logger.info(
+            f"[smoke 3/3] POST /ad_plans: {campaign_name}, "
+            f"1 группа, {len(banners)} баннеров, бюджет {daily_budget_rub}₽/день × "
+            f"{days_duration} дн = {daily_budget_rub * days_duration}₽ всего"
+        )
+
+        try:
+            response = await self.vk.create_ad_plan(ad_plan_payload)
+        except VKAdsAPIError as e:
+            raise AdCreatorError(
+                f"VK не принял smoke ad_plan: {e}", vk_error=e
+            ) from e
+        except Exception as e:
+            raise AdCreatorError(f"VK не принял smoke ad_plan: {e}") from e
+
+        # Парсим ответ
+        ad_plan_id = int(response.get("id", 0))
+        ad_group_ids: list[int] = []
+        banner_ids: list[int] = []
+        nested_resp = response.get("campaigns") or response.get("ad_groups") or []
+        for group in nested_resp:
+            if isinstance(group, dict) and "id" in group:
+                ad_group_ids.append(int(group["id"]))
+                for banner in group.get("banners", []):
+                    if isinstance(banner, dict) and "id" in banner:
+                        banner_ids.append(int(banner["id"]))
+
+        if not ad_plan_id:
+            raise AdCreatorError(f"В ответе VK нет id ad_plan: {response}")
+
+        logger.info(
+            f"✅ Smoke test кампания создана: ad_plan_id={ad_plan_id}, "
+            f"группа={ad_group_ids[0] if ad_group_ids else '?'}, "
+            f"баннеров={len(banner_ids)}"
+        )
+
+        return CampaignSummary(
+            ad_plan_id=ad_plan_id,
+            ad_group_ids=ad_group_ids,
+            banner_ids=banner_ids,
+            raw=response,
+        )
+
 
 # Сплит возрастов. По дефолту ОДНА группа (для тестирования с малым балансом) —
 # когда баланс позволит, расширим до полного A/B сплита по 5 окон по 2 года.

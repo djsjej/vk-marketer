@@ -447,7 +447,17 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Получили фото — скачиваем, генерим варианты текста, показываем для выбора."""
+    """Получили фото — скачиваем, генерим варианты текста, показываем для выбора.
+
+    Phase 5.9: если выставлен флаг ожидания фото для smoke test —
+    приоритетно вызываем handle_smoke_test_photo, не идём в обычный
+    фото-flow. Smoke test использует другую логику (захардкоженные
+    тексты A/B, одна кампания не split по возрастам).
+    """
+    # Phase 5.9: проверка флага smoke test ПЕРЕД обычной логикой
+    if await handle_smoke_test_photo(update, context):
+        return
+
     if not settings.vk_configured:
         await update.message.reply_text(
             "⚠️ Сначала настрой VK Ads OAuth в Railway env vars."
@@ -2057,3 +2067,197 @@ def _parse_audience_file(raw_text: str) -> tuple[list[int], dict]:
         "valid": len(user_ids),
         "invalid_lines": invalid_lines,
     }
+
+
+# ============================================================
+# Phase 5.9 (16.05.2026 утром) — команда /launch_test для smoke test
+# ============================================================
+#
+# Smoke test после ночной сессии 15-16.05.2026:
+# - Сегмент 80507749 в VK Ads готов (619 146 ID через TargetHunter)
+# - Боба согласовал план: одна кампания, A/B на 2 текстах, package 3127
+#   ("Написать"), бюджет 500₽/день × 3 дня = 1500₽
+# - Тексты A и B одобрены Vizit'ом
+# - Фото от Vizit'а (картинка с монахом и чётками)
+#
+# Workflow:
+# 1. /launch_test → бот ставит флаг ожидания фото
+# 2. Vizit присылает фото в чат
+# 3. Бот вызывает AdCreator.create_smoke_test_campaign() с захардкоженными
+#    текстами A и B
+# 4. Бот возвращает ad_plan_id и инструкцию проверить в кабинете VK Ads
+
+# Тексты под smoke test — одобрены Vizit'ом и Бобой
+SMOKE_TEST_COPY_A_TITLE = "Помолимся о ваших близких"
+SMOKE_TEST_COPY_A_TEXT = (
+    "Если в вашем сердце есть имя — родного, болеющего, ушедшего — "
+    "напишите нам. Помолимся вместе.\n\n"
+    "О здравии или упокоении — просто отправьте имена сообщением."
+)
+SMOKE_TEST_COPY_A_ABOUT = "Молитвенное сообщество. Напишите имена близких."
+SMOKE_TEST_COPY_A_CTA = "write"  # для package 3127
+
+SMOKE_TEST_COPY_B_TITLE = "Имя дорогого человека"
+SMOKE_TEST_COPY_B_TEXT = (
+    "Имя дорогого вам человека может стать частью молитвы.\n\n"
+    "Напишите сюда имена близких — о здравии или упокоении — и они "
+    "войдут в молитвенное правило нашей общины."
+)
+SMOKE_TEST_COPY_B_ABOUT = "Молитвенное сообщество. Имена для молитвы."
+SMOKE_TEST_COPY_B_CTA = "write"
+
+
+async def launch_test_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Запускает smoke test после сбора аудитории через TargetHunter.
+
+    Создаёт одну кампанию в VK Ads с A/B на 2 текстах. Сегмент берётся
+    из env VK_AUDIENCE_SEGMENT_IDS автоматически. Бюджет фиксирован
+    500₽/день × 3 дня = 1500₽.
+    """
+    # Проверка что сегмент задан
+    from src.config import settings
+    segments = settings.vk_audience_segment_ids_parsed
+    if not segments:
+        await update.message.reply_text(
+            "❌ В Railway env не задан `VK_AUDIENCE_SEGMENT_IDS`.\n\n"
+            "Сейчас сделай:\n"
+            "1. Открой Railway → vk-marketer worker → Variables\n"
+            "2. Добавь переменную:\n"
+            "   `VK_AUDIENCE_SEGMENT_IDS=80507749`\n"
+            "3. Сохрани и дождись передеплоя (~2 мин)\n"
+            "4. Вернись и снова `/launch_test`",
+            parse_mode="Markdown",
+        )
+        return
+
+    context.user_data["awaiting_smoke_test_photo"] = True
+
+    await update.message.reply_text(
+        f"🧪 *Smoke Test готов к запуску*\n\n"
+        f"Параметры:\n"
+        f"— Сегмент: `{', '.join(str(s) for s in segments)}` (горячие православные из TargetHunter)\n"
+        f"— Аудитория: ж 41-58, Россия\n"
+        f"— Бюджет: 500₽/день × 3 дня = 1500₽\n"
+        f"— Цель: «Написать сообщение» (приём имён для поминовения)\n"
+        f"— Креативы: 2 баннера (A/B на двух текстах)\n\n"
+        f"*Жду от тебя ОДНУ фотографию* — лучший кандидат из тех что "
+        f"присылал (атмосферный монах с чётками или похожее). Без текста "
+        f"на изображении.\n\n"
+        f"Просто отправь фото в этот чат. Бот сам создаст кампанию и "
+        f"вернёт ID для проверки в VK Ads UI.\n\n"
+        f"Если передумаешь — напиши «отмена».",
+        parse_mode="Markdown",
+    )
+
+
+async def handle_smoke_test_photo(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    """Обработчик фото для smoke test. Вызывается из handle_photo если
+    выставлен флаг.
+
+    Returns:
+        True если обработали (handle_photo не должен дальше обрабатывать),
+        False если флага нет (обычный photo handler работает как раньше).
+    """
+    if not context.user_data.get("awaiting_smoke_test_photo"):
+        return False
+
+    context.user_data["awaiting_smoke_test_photo"] = False
+
+    # Скачиваем фото
+    photo = update.message.photo[-1]  # самое большое разрешение
+    try:
+        tg_file = await photo.get_file()
+        image_bytes = bytes(await tg_file.download_as_bytearray())
+    except Exception as e:
+        logger.exception("Failed to download smoke test photo")
+        await update.message.reply_text(
+            f"❌ Не смог скачать фото: `{type(e).__name__}: {e}`. "
+            f"Попробуй ещё раз `/launch_test`.",
+            parse_mode="Markdown",
+        )
+        return True
+
+    await update.message.reply_text(
+        f"📥 Получил фото ({len(image_bytes) // 1024} KB). "
+        f"Создаю кампанию в VK Ads... (1-2 минуты)"
+    )
+
+    # Создаём кампанию
+    try:
+        from src.services.ad_creator import AdCopy, AdCreator
+        from src.vk_ads.client import VKAdsClient
+
+        ads_client = VKAdsClient.from_settings()
+        if ads_client is None:
+            await update.message.reply_text(
+                "❌ VK Ads клиент не настроен — проверь OAuth env в Railway."
+            )
+            return True
+
+        ad_creator = AdCreator(ads_client)
+
+        copies = [
+            AdCopy(
+                title=SMOKE_TEST_COPY_A_TITLE,
+                text=SMOKE_TEST_COPY_A_TEXT,
+                about=SMOKE_TEST_COPY_A_ABOUT,
+                cta=SMOKE_TEST_COPY_A_CTA,
+            ),
+            AdCopy(
+                title=SMOKE_TEST_COPY_B_TITLE,
+                text=SMOKE_TEST_COPY_B_TEXT,
+                about=SMOKE_TEST_COPY_B_ABOUT,
+                cta=SMOKE_TEST_COPY_B_CTA,
+            ),
+        ]
+
+        result = await ad_creator.create_smoke_test_campaign(
+            image_bytes=image_bytes,
+            copies=copies,
+            community_url="https://vk.com/pomolimsy",
+            daily_budget_rub=500,
+            days_duration=3,
+            age_min=41,
+            age_max=58,
+        )
+    except Exception as e:
+        logger.exception("Smoke test campaign creation failed")
+        await update.message.reply_text(
+            f"❌ Не смог создать кампанию: `{type(e).__name__}: {e}`\n\n"
+            f"Скорее всего одно из:\n"
+            f"— Истёк OAuth токен VK Ads (проверь Railway env)\n"
+            f"— Бюджет (1500₽) превышает баланс кабинета\n"
+            f"— Сегмент 80507749 ещё не в статусе ready (подожди 10-15 мин)\n"
+            f"— Ошибка валидации payload (нужны логи Railway)\n\n"
+            f"Попробуй ещё раз через несколько минут.",
+            parse_mode="Markdown",
+        )
+        return True
+
+    # Успех
+    ad_plan_id = result.ad_plan_id
+    banner_count = len(result.banner_ids)
+    await update.message.reply_text(
+        f"✅ *Smoke test кампания создана!*\n\n"
+        f"🆔 Кампания: `{ad_plan_id}`\n"
+        f"📊 Баннеров создано: {banner_count} (A/B)\n"
+        f"💰 Бюджет: 1500₽ (500₽/день × 3 дня)\n"
+        f"🎯 Сегмент: 80507749 (619k горячих)\n\n"
+        f"*Что дальше:*\n"
+        f"1. Открой VK Ads на телефоне → раздел «Кампании»\n"
+        f"2. Найди новую кампанию (по имени `smoke_test ...`)\n"
+        f"3. Проверь что выглядит корректно (тексты, фото, аудитория)\n"
+        f"4. Дождись модерации (~4 часа)\n"
+        f"5. Если кампания в статусе «Активна» — она крутится\n"
+        f"6. Если отклонена — пришли скрин причины, разберём\n\n"
+        f"Через 3 дня — Алина сделает срез метрик через `/boba`.",
+        parse_mode="Markdown",
+    )
+
+    logger.info(
+        f"Smoke test создан: ad_plan_id={ad_plan_id}, "
+        f"banners={banner_count}, segment=80507749"
+    )
+    return True
