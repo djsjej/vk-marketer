@@ -895,7 +895,7 @@ class AdCreator:
             "date_end": date_end,
             "autobidding_mode": "max_goals",
             "budget_limit_day": daily_budget_rub,
-            "budget_limit": daily_budget_rub * days_duration,  # общий лимит
+            "budget_limit": None,  # CBO: только дневной, VK сам ограничит по date_end
             "max_price": 0,
             "objective": "socialengagement",
             "ad_object_type": "url",
