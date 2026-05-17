@@ -414,15 +414,15 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
             if active:
                 lines.append("\nАктивные:")
-                for c in active[:5]:
+                for c in active[:20]:
                     name = c.get("name", "?")[:40]
                     daily = c.get("budget_limit_day", "—")
                     # Backticks вокруг имени — внутри них Markdown игнорируется.
                     # Имена могут содержать _ и * (smoke_test, batch ж41-46 и т.д.),
                     # без backticks Telegram падает на parse_entities.
                     lines.append(f"  • `{name}` (дневной: {daily})")
-                if len(active) > 5:
-                    lines.append(f"  ... и ещё {len(active) - 5}")
+                if len(active) > 20:
+                    lines.append(f"  ... и ещё {len(active) - 20}")
 
         await placeholder.edit_text("\n".join(lines), parse_mode="Markdown")
 
@@ -2955,17 +2955,22 @@ async def watchdog_command(
 
     if alerts:
         lines.append(f"\n⚠️ *С проблемами: {len(alerts)}*")
-        for cid, name, reason in alerts[:10]:
+        # Лимит 20 поднят с 10 (Phase 5.16, 17.05.2026) — при батче из 12
+        # кампаний прошлый лимит обрезал хвост и пользователь не видел
+        # последние 2 алерта. 20 — с запасом, Telegram-сообщение влезает.
+        for cid, name, reason in alerts[:20]:
             lines.append(f"\n`{name}` (`{cid}`)")
             lines.append(reason)
+        if len(alerts) > 20:
+            lines.append(f"\n_...и ещё {len(alerts) - 20} с проблемами_")
 
     if ok_campaigns:
         lines.append(f"\n\n✅ *В норме: {len(ok_campaigns)}*")
-        for cid, name, stats in ok_campaigns[:5]:
+        for cid, name, stats in ok_campaigns[:20]:
             simple_stats = _format_stats_simple(stats)
             lines.append(f"\n• `{name}` — {simple_stats}")
-        if len(ok_campaigns) > 5:
-            lines.append(f"\n_...и ещё {len(ok_campaigns) - 5} в норме_")
+        if len(ok_campaigns) > 20:
+            lines.append(f"\n_...и ещё {len(ok_campaigns) - 20} в норме_")
 
     if no_data_campaigns:
         lines.append(f"\n\n🕐 *Ещё нет данных: {len(no_data_campaigns)}*")
