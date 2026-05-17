@@ -162,7 +162,7 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
         f"работа{'ет' if len(alerts) == 1 else 'ют'} плохо*\n"
     ]
     for cid, name, reason in alerts[:15]:  # максимум 15 в одном сообщении
-        lines.append(f"\n*{name}* (`{cid}`)")
+        lines.append(f"\n`{name}` (`{cid}`)")
         lines.append(reason)
     if len(alerts) > 15:
         lines.append(f"\n_...и ещё {len(alerts) - 15} объявлений с проблемами_")
