@@ -36,7 +36,7 @@ def test_high_spend_no_clicks_pauses_campaign(monkeypatch):
         campaign_id=42, impressions=10000, clicks=0, spent_rub=400, leads=0
     )
     decision = check_campaign_anomaly(stats)
-    assert decision.action == "pause"
+    assert decision.action == "alert"
     assert 42 in decision.affected_ids
 
 

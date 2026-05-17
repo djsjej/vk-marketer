@@ -60,3 +60,8 @@ class CampaignStats(BaseModel):
     def cpm_rub(self) -> float:
         """Cost per mille (1000 показов) в рублях."""
         return (self.spent_rub / self.impressions * 1000) if self.impressions else 0.0
+
+    @property
+    def cpc_rub(self) -> float:
+        """Cost per click в рублях."""
+        return self.spent_rub / self.clicks if self.clicks else 0.0

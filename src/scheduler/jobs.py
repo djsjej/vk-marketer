@@ -70,13 +70,112 @@ async def send_morning_report(bot: Bot) -> None:
 
 
 async def check_metrics_and_anomalies(bot: Bot) -> None:
-    """Каждые N минут — проверка кампаний на аномалии."""
-    logger.debug("Проверка метрик и аномалий")
-    # TODO:
-    # 1. Получить активные кампании и их свежие метрики
-    # 2. Применить правила из src.scheduler.safety
-    # 3. При нарушении правила — пауза и алерт владельцу
-    pass
+    """Сторож — Phase 5.12 (17.05.2026).
+
+    Каждые N минут проверяет активные кампании, при пробитии порогов
+    шлёт уведомление владельцу в Telegram. **Auto-pause не делает** —
+    Vizit решает и выключает через `/pause <id>` или `/kill_bad`.
+
+    Логика:
+    1. GET всех активных кампаний (status='active')
+    2. Для каждой кампании читаем метрики за сегодня
+    3. Применяем safety правила (check_campaign_anomaly)
+    4. Группируем все алерты в одно сообщение Vizit'у
+    5. Сохраняем список «жёлтых» ID в персистентное хранилище для /kill_bad
+    """
+    from datetime import datetime
+
+    from src.scheduler.safety import check_campaign_anomaly
+    from src.vk_ads.client import VKAdsClient
+    from src.vk_ads.models import CampaignStats
+
+    logger.info("[Сторож] Запуск проверки активных кампаний")
+
+    client = VKAdsClient.from_settings()
+    if client is None:
+        logger.warning("[Сторож] VKAdsClient не настроен, пропускаю")
+        return
+
+    try:
+        active_campaigns = await client.get_active_ad_plans()
+    except Exception as e:
+        logger.exception(f"[Сторож] Не смог получить активные кампании: {e}")
+        return
+
+    if not active_campaigns:
+        logger.info("[Сторож] Активных кампаний нет")
+        return
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    campaign_ids = [int(c["id"]) for c in active_campaigns]
+
+    logger.info(f"[Сторож] Проверяю {len(campaign_ids)} активных кампаний за {today}")
+
+    try:
+        stats_response = await client.get_campaign_stats(
+            campaign_ids=campaign_ids,
+            date_from=today,
+            date_to=today,
+        )
+    except Exception as e:
+        logger.exception(f"[Сторож] Не смог получить метрики: {e}")
+        return
+
+    # Парсим метрики и применяем правила
+    name_by_id = {int(c["id"]): c.get("name", "?") for c in active_campaigns}
+    alerts: list[tuple[int, str, str]] = []  # (id, name, reason)
+
+    items = stats_response.get("items", []) if isinstance(stats_response, dict) else []
+    for item in items:
+        cid = int(item.get("id", 0))
+        if not cid:
+            continue
+        # Метрики могут быть в total или в rows[0] в зависимости от API версии
+        total = item.get("total") or {}
+        if not total and isinstance(item.get("rows"), list) and item["rows"]:
+            total = item["rows"][0]
+
+        stats = CampaignStats(
+            campaign_id=cid,
+            impressions=int(total.get("shows", 0) or 0),
+            clicks=int(total.get("clicks", 0) or 0),
+            spent_rub=float(total.get("spent", 0) or 0),
+            leads=int(total.get("goals", 0) or 0),
+        )
+
+        decision = check_campaign_anomaly(stats)
+        if decision.action == "alert":
+            alerts.append((cid, name_by_id.get(cid, "?"), decision.reason))
+
+    # Сохраняем список «жёлтых» для /kill_bad
+    from src.scheduler import bad_campaigns_state
+    bad_campaigns_state.set_bad_ids([a[0] for a in alerts])
+
+    if not alerts:
+        logger.info("[Сторож] Все кампании в норме")
+        return
+
+    # Шлём групповое сообщение Vizit'у
+    lines = [f"⚠️ *Сторож: {len(alerts)} кампаний с проблемами*\n"]
+    for cid, name, reason in alerts[:15]:  # максимум 15 в одном сообщении
+        lines.append(f"\n*{name}* (`{cid}`)\n{reason}")
+    if len(alerts) > 15:
+        lines.append(f"\n_...и ещё {len(alerts) - 15} кампаний_")
+    lines.append(
+        f"\n\n*Что делать:*\n"
+        f"• Отключить конкретную: `/pause <id>`\n"
+        f"• Отключить все «жёлтые» разом: `/kill_bad`\n"
+        f"• Проигнорировать — алерты повторятся через час если ситуация не изменится"
+    )
+
+    try:
+        await bot.send_message(
+            chat_id=settings.telegram_owner_id,
+            text="".join(lines),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.error(f"[Сторож] Не смог отправить алерт: {e}")
 
 
 async def check_daily_budget(bot: Bot) -> None:

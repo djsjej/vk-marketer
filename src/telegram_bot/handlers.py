@@ -2702,3 +2702,127 @@ async def handle_batch_photo(
         f"ids={[r.ad_plan_id for r in results]}"
     )
     return True
+
+
+# ============================================================
+# Phase 5.12 (17.05.2026) — Сторож: /pause и /kill_bad
+# ============================================================
+#
+# Сторож (src/scheduler/jobs.py::check_metrics_and_anomalies) каждый час
+# читает метрики активных кампаний, применяет правила из safety.py,
+# и при пробитии порогов шлёт алерт владельцу в Telegram.
+#
+# Auto-pause в первой версии НЕТ — Vizit сам решает и выключает через:
+# - /pause <ad_plan_id>   — одну конкретную
+# - /kill_bad             — все «жёлтые» (которые Сторож пометил)
+
+
+async def pause_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Выключить кампанию по ID. Использование: /pause <ad_plan_id>"""
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "📖 Использование: `/pause <ad_plan_id>`\n\nНапример: `/pause 21162137`",
+            parse_mode="Markdown",
+        )
+        return
+
+    try:
+        ad_plan_id = int(args[0])
+    except ValueError:
+        await update.message.reply_text(
+            f"❌ ID должен быть числом, передано: `{args[0]}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    try:
+        from src.vk_ads.client import VKAdsClient
+        client = VKAdsClient.from_settings()
+        if client is None:
+            await update.message.reply_text("❌ VK Ads клиент не настроен.")
+            return
+
+        await client.pause_campaign(ad_plan_id)
+    except Exception as e:
+        logger.exception("pause_campaign failed")
+        await update.message.reply_text(
+            f"❌ Не смог выключить `{ad_plan_id}`: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    await update.message.reply_text(
+        f"✅ Кампания `{ad_plan_id}` выключена (status=blocked).",
+        parse_mode="Markdown",
+    )
+    logger.info(f"pause_command: ad_plan_id={ad_plan_id} выключена")
+
+
+async def kill_bad_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Массовое выключение всех «жёлтых» кампаний которые Сторож пометил."""
+    from src.scheduler import bad_campaigns_state
+
+    bad_ids, last_update = bad_campaigns_state.get_bad_ids()
+
+    if not bad_ids:
+        if last_update == 0:
+            await update.message.reply_text(
+                "ℹ️ Сторож ещё не запускался (проверка раз в час). "
+                "Подожди до следующего запуска или выключай через `/pause <id>`.",
+                parse_mode="Markdown",
+            )
+        else:
+            from datetime import datetime
+            age_min = int((datetime.now().timestamp() - last_update) / 60)
+            await update.message.reply_text(
+                f"✅ В последней проверке Сторожа ({age_min} мин назад) "
+                f"проблемных кампаний не было — все в норме."
+            )
+        return
+
+    await update.message.reply_text(
+        f"🔄 Выключаю {len(bad_ids)} проблемных кампаний..."
+    )
+
+    try:
+        from src.vk_ads.client import VKAdsClient
+        client = VKAdsClient.from_settings()
+        if client is None:
+            await update.message.reply_text("❌ VK Ads клиент не настроен.")
+            return
+
+        success: list[int] = []
+        failed: list[tuple[int, str]] = []
+        for cid in bad_ids:
+            try:
+                await client.pause_campaign(cid)
+                success.append(cid)
+            except Exception as e:
+                failed.append((cid, f"{type(e).__name__}: {e}"))
+
+        # Очищаем список — выключенные больше не «жёлтые»
+        bad_campaigns_state.clear()
+
+    except Exception as e:
+        logger.exception("kill_bad failed")
+        await update.message.reply_text(
+            f"❌ Сбой при массовом выключении: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    msg = f"✅ Выключено: *{len(success)}/{len(bad_ids)}*\n"
+    if success:
+        msg += "\n" + "\n".join(f"• `{cid}`" for cid in success[:10])
+        if len(success) > 10:
+            msg += f"\n_...и ещё {len(success) - 10}_"
+    if failed:
+        msg += f"\n\n❌ *Не получилось ({len(failed)}):*"
+        for cid, err in failed[:5]:
+            msg += f"\n• `{cid}` — {err}"
+
+    await update.message.reply_text(msg, parse_mode="Markdown")
+    logger.info(
+        f"kill_bad: выключено {len(success)}/{len(bad_ids)}, провалов {len(failed)}"
+    )

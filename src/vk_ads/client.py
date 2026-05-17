@@ -688,6 +688,45 @@ class VKAdsClient:
         """
         return await self._request("POST", "/ad_plans.json", json_body=payload)
 
+    async def pause_campaign(self, ad_plan_id: int) -> dict:
+        """Выключить кампанию (Phase 5.12 — для Сторожа и команды /pause).
+
+        POST /ad_plans/<id>.json со status='blocked'. VK Ads принимает
+        несколько статусов: 'active' (работает), 'blocked' (выключена
+        пользователем), 'deleted' (удалена).
+
+        Args:
+            ad_plan_id: ID кампании.
+
+        Returns:
+            dict с обновлённой инфой о кампании.
+
+        Raises:
+            VKAdsAPIError: на ошибки API.
+        """
+        return await self._request(
+            "POST",
+            f"/ad_plans/{ad_plan_id}.json",
+            json_body={"status": "blocked"},
+        )
+
+    async def get_active_ad_plans(self) -> list[dict]:
+        """Получить список всех активных кампаний (status='active').
+
+        GET /ad_plans.json с фильтром по статусу. Используется Сторожем
+        чтобы понять кого мониторить.
+
+        Returns:
+            list[dict] — каждый dict с полями id, name, status, и т.д.
+        """
+        response = await self._request(
+            "GET",
+            "/ad_plans.json",
+            params={"_status": "active", "limit": 200},
+        )
+        items = response.get("items", []) if isinstance(response, dict) else []
+        return items
+
     async def create_ad_group(self, payload: dict) -> dict:
         """Создать группу объявлений отдельно.
 
