@@ -18,12 +18,24 @@ class Settings(BaseSettings):
     telegram_owner_id: int = Field(..., description="Telegram user_id владельца")
 
     # Phase 5.15 (17.05.2026) — multi-bot архитектура.
-    # Каждый агент команды получает свой Telegram-бот через @BotFather.
-    # Когда токен задан в env — параллельно с главным ботом запускается
-    # отдельный Application с своей персоной и хендлерами.
-    # Начали с Бобы (стратег), потом добавим остальных.
+    # Phase 5.16 — расширение до полной команды.
+    # Каждый агент получает свой Telegram-бот через @BotFather.
+    # Когда токен задан в env — параллельно с главным запускается
+    # отдельный Application с своей персоной.
     tg_bot_boba_token: str | None = Field(
         None, description="Токен бота Бобы (стратег команды)"
+    )
+    tg_bot_kirill_token: str | None = Field(
+        None, description="Токен бота Кирилла (креативщик)"
+    )
+    tg_bot_timur_token: str | None = Field(
+        None, description="Токен бота Тимура (таргетолог)"
+    )
+    tg_bot_rita_token: str | None = Field(
+        None, description="Токен бота Риты (аналитик ЦА)"
+    )
+    tg_bot_alina_token: str | None = Field(
+        None, description="Токен бота Алины (аналитик результатов)"
     )
 
     # --- VK Реклама ---
