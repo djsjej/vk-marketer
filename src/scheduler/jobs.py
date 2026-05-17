@@ -155,17 +155,22 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
         logger.info("[Сторож] Все кампании в норме")
         return
 
-    # Шлём групповое сообщение Vizit'у
-    lines = [f"⚠️ *Сторож: {len(alerts)} кампаний с проблемами*\n"]
+    # Шлём групповое сообщение Vizit'у — человеческий язык (Phase 5.14)
+    lines = [
+        f"🐕 *Сторож докладывает: {len(alerts)} объявлени"
+        f"{'е' if len(alerts) == 1 else 'й' if 2 <= len(alerts) <= 4 else 'й'} "
+        f"работа{'ет' if len(alerts) == 1 else 'ют'} плохо*\n"
+    ]
     for cid, name, reason in alerts[:15]:  # максимум 15 в одном сообщении
-        lines.append(f"\n*{name}* (`{cid}`)\n{reason}")
+        lines.append(f"\n*{name}* (`{cid}`)")
+        lines.append(reason)
     if len(alerts) > 15:
-        lines.append(f"\n_...и ещё {len(alerts) - 15} кампаний_")
+        lines.append(f"\n_...и ещё {len(alerts) - 15} объявлений с проблемами_")
     lines.append(
-        f"\n\n*Что делать:*\n"
-        f"• Отключить конкретную: `/pause <id>`\n"
-        f"• Отключить все «жёлтые» разом: `/kill_bad`\n"
-        f"• Проигнорировать — алерты повторятся через час если ситуация не изменится"
+        f"\n\n*Что можно сделать:*\n"
+        f"• Выключить одно: напиши `/pause <номер>` где <номер> — ID объявления выше\n"
+        f"• Выключить сразу все {len(alerts)} проблемных: `/kill_bad`\n"
+        f"• Ничего не делать — через час я снова посмотрю и напишу опять если ситуация не улучшится"
     )
 
     try:

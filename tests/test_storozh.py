@@ -22,7 +22,7 @@ def test_low_ctr_alerts():
     )
     decision = check_campaign_anomaly(stats)
     assert decision.action == "alert"
-    assert "CTR" in decision.reason
+    assert "кликнули" in decision.reason
     assert 100 in decision.affected_ids
 
 
@@ -50,7 +50,7 @@ def test_high_cpc_alerts():
     )
     decision = check_campaign_anomaly(stats)
     assert decision.action == "alert"
-    assert "CPC" in decision.reason
+    assert "переплачиваем" in decision.reason
     assert 200 in decision.affected_ids
 
 
@@ -80,7 +80,7 @@ def test_no_conversions_at_high_spend_alerts():
     )
     decision = check_campaign_anomaly(stats)
     assert decision.action == "alert"
-    assert "конверсий" in decision.reason
+    assert "никто не написал" in decision.reason
 
 
 def test_good_campaign_passes():

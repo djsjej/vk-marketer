@@ -2826,3 +2826,185 @@ async def kill_bad_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     logger.info(
         f"kill_bad: выключено {len(success)}/{len(bad_ids)}, провалов {len(failed)}"
     )
+
+
+# ============================================================
+# Phase 5.14 (17.05.2026) — команда /watchdog
+# ============================================================
+#
+# Vizit плохо понимает статистику, хочет:
+# 1. Простой язык в алертах Сторожа (без CTR/CPC)
+# 2. Возможность "ткнуть" Сторожа и получить отчёт сейчас
+#
+# /watchdog — принудительный запуск проверки. Сторож обычно работает по
+# расписанию (раз в час), но эта команда позволяет триггернуть его на
+# месте + получить детальный отчёт о состоянии всех активных кампаний
+# (не только проблемных).
+
+
+async def watchdog_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Принудительный запуск Сторожа с детальным отчётом по всем активным
+    кампаниям (не только проблемным).
+
+    Используется когда Vizit хочет проверить «как там моя реклама прямо
+    сейчас», не дожидаясь автоматического запуска через час.
+    """
+    from datetime import datetime
+    from src.scheduler.safety import check_campaign_anomaly
+    from src.scheduler import bad_campaigns_state
+    from src.vk_ads.client import VKAdsClient
+    from src.vk_ads.models import CampaignStats
+
+    await update.message.reply_text(
+        "🐕 Сторож проверяет кампании... (10-20 секунд)"
+    )
+
+    client = VKAdsClient.from_settings()
+    if client is None:
+        await update.message.reply_text(
+            "❌ VK Ads клиент не настроен — не могу проверить."
+        )
+        return
+
+    try:
+        active_campaigns = await client.get_active_ad_plans()
+    except Exception as e:
+        logger.exception("watchdog: failed to get active campaigns")
+        await update.message.reply_text(
+            f"❌ Не смог получить список кампаний: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    if not active_campaigns:
+        await update.message.reply_text(
+            "🐕 *Сторож докладывает:*\n\n"
+            "Сейчас нет активных кампаний которые крутятся.\n\n"
+            "Возможные причины:\n"
+            "• Все кампании ещё на модерации (через 4 часа после запуска "
+            "обычно проходят)\n"
+            "• Все кампании уже завершились (бюджет потрачен)\n"
+            "• Все кампании выключены вручную\n\n"
+            "Как только кампании начнут крутиться — я снова заработаю. "
+            "Проверь статус в VK Ads → Кампании.",
+            parse_mode="Markdown",
+        )
+        return
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    campaign_ids = [int(c["id"]) for c in active_campaigns]
+    name_by_id = {int(c["id"]): c.get("name", "?") for c in active_campaigns}
+
+    try:
+        stats_response = await client.get_campaign_stats(
+            campaign_ids=campaign_ids,
+            date_from=today,
+            date_to=today,
+        )
+    except Exception as e:
+        logger.exception("watchdog: failed to get stats")
+        await update.message.reply_text(
+            f"❌ Не смог получить метрики: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Парсим метрики и применяем правила
+    alerts: list[tuple[int, str, str]] = []
+    ok_campaigns: list[tuple[int, str, CampaignStats]] = []
+    no_data_campaigns: list[tuple[int, str]] = []
+
+    items = stats_response.get("items", []) if isinstance(stats_response, dict) else []
+    stats_by_id = {}
+    for item in items:
+        cid = int(item.get("id", 0))
+        if not cid:
+            continue
+        total = item.get("total") or {}
+        if not total and isinstance(item.get("rows"), list) and item["rows"]:
+            total = item["rows"][0]
+        stats_by_id[cid] = CampaignStats(
+            campaign_id=cid,
+            impressions=int(total.get("shows", 0) or 0),
+            clicks=int(total.get("clicks", 0) or 0),
+            spent_rub=float(total.get("spent", 0) or 0),
+            leads=int(total.get("goals", 0) or 0),
+        )
+
+    for cid in campaign_ids:
+        name = name_by_id.get(cid, "?")
+        stats = stats_by_id.get(cid)
+        if stats is None or stats.impressions == 0:
+            no_data_campaigns.append((cid, name))
+            continue
+
+        decision = check_campaign_anomaly(stats)
+        if decision.action == "alert":
+            alerts.append((cid, name, decision.reason))
+        else:
+            ok_campaigns.append((cid, name, stats))
+
+    # Сохраняем состояние плохих
+    bad_campaigns_state.set_bad_ids([a[0] for a in alerts])
+
+    # Формируем отчёт
+    lines = [f"🐕 *Сторож докладывает (всего {len(campaign_ids)} кампаний):*\n"]
+
+    if alerts:
+        lines.append(f"\n⚠️ *С проблемами: {len(alerts)}*")
+        for cid, name, reason in alerts[:10]:
+            lines.append(f"\n*{name}* (`{cid}`)")
+            lines.append(reason)
+
+    if ok_campaigns:
+        lines.append(f"\n\n✅ *В норме: {len(ok_campaigns)}*")
+        for cid, name, stats in ok_campaigns[:5]:
+            simple_stats = _format_stats_simple(stats)
+            lines.append(f"\n• *{name}* — {simple_stats}")
+        if len(ok_campaigns) > 5:
+            lines.append(f"\n_...и ещё {len(ok_campaigns) - 5} в норме_")
+
+    if no_data_campaigns:
+        lines.append(f"\n\n🕐 *Ещё нет данных: {len(no_data_campaigns)}*")
+        lines.append(
+            "_Эти кампании только запустились или модерация ещё идёт. "
+            "Подожди 1-2 часа._"
+        )
+
+    if alerts:
+        lines.append(
+            f"\n\n*Что делать:*\n"
+            f"• Выключить конкретную: `/pause <id>`\n"
+            f"• Выключить все проблемные ({len(alerts)} шт): `/kill_bad`"
+        )
+    elif ok_campaigns:
+        lines.append(
+            "\n\nВсё крутится нормально. Я буду продолжать следить и "
+            "пришлю сообщение если что-то пойдёт не так."
+        )
+
+    msg = "".join(lines)
+    # Telegram limit — 4096 символов на сообщение
+    if len(msg) > 4000:
+        msg = msg[:3950] + "\n\n_(отчёт обрезан, слишком длинный)_"
+
+    await update.message.reply_text(msg, parse_mode="Markdown")
+
+
+def _format_stats_simple(stats) -> str:
+    """Простой человеческий формат метрик (без CTR/CPC терминов).
+
+    Пример: "Показали 2400 раз, кликнули 18, потрачено 250₽"
+    """
+    parts = []
+    if stats.impressions > 0:
+        parts.append(f"показали {stats.impressions:,} раз".replace(",", " "))
+    if stats.clicks > 0:
+        parts.append(f"кликнули {stats.clicks}")
+    if stats.spent_rub > 0:
+        parts.append(f"потрачено {stats.spent_rub:.0f}₽")
+    if stats.leads > 0:
+        parts.append(f"📬 *написали {stats.leads}!*")
+    return ", ".join(parts) if parts else "нет данных"

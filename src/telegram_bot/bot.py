@@ -37,6 +37,7 @@ from src.telegram_bot.handlers import (
     vk_orthodox_command,
     vk_parse_command,
     vk_search_command,
+    watchdog_command,
 )
 
 logger = logging.getLogger(__name__)
@@ -110,6 +111,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("kill_bad", kill_bad_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("watchdog", watchdog_command, filters=owner_filter)
     )
     application.add_handler(
         CommandHandler("menu", menu_command, filters=owner_filter)
