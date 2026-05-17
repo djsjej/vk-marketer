@@ -845,12 +845,19 @@ class AdCreator:
                 f"Не смог зарегистрировать URL {community_url}: {e}"
             ) from e
 
-        # 2. Готовим картинку (icon_256 + image_600 — обе обязательны)
-        logger.info(f"[smoke 2/3] Обрабатываю и загружаю картинку ({len(image_bytes)} байт)")
+        # 2. Готовим картинку креатива (image_600x600) + аватар сообщества (icon_256x256)
+        # Phase 5.13: icon_256 — это АВАТАР сообщества pomolimsy, не та же
+        # картинка что и креатив. Иначе в превью у объявления слева в кружочке
+        # стоит фото монаха вместо лого группы (выглядит непрофессионально,
+        # снижает доверие и CTR).
+        logger.info(f"[smoke 2/3] Обрабатываю и загружаю изображения ({len(image_bytes)} байт креатива)")
         try:
             from io import BytesIO
             from PIL import Image
 
+            from src.services.community_avatar import fetch_community_avatar_bytes
+
+            # === КРЕАТИВ (image_600x600) — присланное фото ===
             src = Image.open(BytesIO(image_bytes))
             if src.mode != "RGB":
                 src = src.convert("RGB")
@@ -859,18 +866,31 @@ class AdCreator:
             left = (w - side) // 2
             top = (h - side) // 2
             src_square = src.crop((left, top, left + side, top + side))
-
-            # Phase 5.11: enhance для повышения CTR в мобильной ленте
+            # Phase 5.11: enhance для повышения CTR
             src_square = _enhance_image_for_ads(src_square)
 
-            def _bytes_at(size: int) -> bytes:
-                resized = src_square.resize((size, size), Image.Resampling.LANCZOS)
-                buf = BytesIO()
-                resized.save(buf, format="JPEG", quality=90)
-                return buf.getvalue()
+            image_600_buf = BytesIO()
+            src_square.resize((600, 600), Image.Resampling.LANCZOS).save(
+                image_600_buf, format="JPEG", quality=90
+            )
+            image_600_bytes = image_600_buf.getvalue()
 
-            image_600_bytes = _bytes_at(600)
-            icon_256_bytes = _bytes_at(256)
+            # === АВАТАР СООБЩЕСТВА (icon_256x256) ===
+            avatar_bytes_raw = await fetch_community_avatar_bytes(community_url)
+            avatar = Image.open(BytesIO(avatar_bytes_raw))
+            if avatar.mode != "RGB":
+                avatar = avatar.convert("RGB")
+            aw, ah = avatar.size
+            aside = min(aw, ah)
+            aleft = (aw - aside) // 2
+            atop = (ah - aside) // 2
+            avatar_square = avatar.crop((aleft, atop, aleft + aside, atop + aside))
+
+            icon_256_buf = BytesIO()
+            avatar_square.resize((256, 256), Image.Resampling.LANCZOS).save(
+                icon_256_buf, format="JPEG", quality=92
+            )
+            icon_256_bytes = icon_256_buf.getvalue()
 
             image_600_id = await self.vk.upload_image(
                 image_600_bytes, "image_600x600.jpg"

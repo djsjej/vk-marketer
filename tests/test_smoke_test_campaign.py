@@ -19,6 +19,20 @@ def _make_tiny_jpeg() -> bytes:
     return buf.getvalue()
 
 
+@pytest.fixture(autouse=True)
+def mock_community_avatar(monkeypatch):
+    """Phase 5.13: мокаем fetch_community_avatar_bytes на возврат фейкового JPEG,
+    чтобы тесты не лезли в VK API за аватаркой сообщества."""
+
+    async def _fake_fetch(community_url: str) -> bytes:
+        return _make_tiny_jpeg()
+
+    monkeypatch.setattr(
+        "src.services.community_avatar.fetch_community_avatar_bytes",
+        _fake_fetch,
+    )
+
+
 @pytest.mark.asyncio
 async def test_smoke_test_rejects_empty_copies():
     """Пустой список AdCopy → AdCreatorError."""
