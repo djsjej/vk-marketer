@@ -28,6 +28,7 @@ from src.telegram_bot.handlers import (
     menu_command,
     on_callback,
     pause_command,
+    pause_non_batch_command,
     set_batch_budget_command,
     start_command,
     help_command,
@@ -118,6 +119,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("set_batch_budget", set_batch_budget_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("pause_non_batch", pause_non_batch_command, filters=owner_filter)
     )
     application.add_handler(
         CommandHandler("menu", menu_command, filters=owner_filter)

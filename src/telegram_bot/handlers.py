@@ -3152,3 +3152,71 @@ async def set_batch_budget_command(
         f"{success_plans} кампаний, {success_groups} групп, "
         f"провалов {len(failed)}"
     )
+
+
+async def pause_non_batch_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Выключить все активные кампании кроме наших batch.
+
+    Чистка после отладочных попыток за день. Оставляет только кампании
+    имя которых начинается с 'batch' (из /launch_batch). Всё остальное
+    (smoke_test, старые тестовые) выключает в статус 'blocked'.
+    """
+    from src.vk_ads.client import VKAdsClient
+    client = VKAdsClient.from_settings()
+    if client is None:
+        await update.message.reply_text("❌ VK Ads клиент не настроен.")
+        return
+
+    try:
+        active = await client.get_active_ad_plans()
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Не смог получить список: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    non_batch = [
+        c for c in active
+        if not c.get("name", "").startswith("batch")
+    ]
+
+    if not non_batch:
+        await update.message.reply_text(
+            "✅ Активных НЕ-batch кампаний нет, всё уже чисто."
+        )
+        return
+
+    await update.message.reply_text(
+        f"🔄 Выключаю {len(non_batch)} старых кампаний (не batch)... "
+        f"(5-15 секунд)"
+    )
+
+    success: list[tuple[int, str]] = []
+    failed: list[tuple[int, str]] = []
+
+    for camp in non_batch:
+        cid = int(camp["id"])
+        name = camp.get("name", "?")[:30]
+        try:
+            await client.pause_campaign(cid)
+            success.append((cid, name))
+        except Exception as e:
+            failed.append((cid, f"{type(e).__name__}: {e}"))
+
+    msg = f"✅ Выключено: *{len(success)}* старых кампаний\n"
+    if success:
+        msg += "\n" + "\n".join(f"• `{cid}` {name}" for cid, name in success[:10])
+        if len(success) > 10:
+            msg += f"\n• ...и ещё {len(success) - 10}"
+
+    if failed:
+        msg += f"\n\n❌ Не получилось ({len(failed)}):"
+        for fid, err in failed[:3]:
+            msg += f"\n• `{fid}` — {err}"
+
+    msg += "\n\n_Теперь активны только 12 batch-кампаний. Спокойной ночи._"
+
+    await update.message.reply_text(msg, parse_mode="Markdown")
