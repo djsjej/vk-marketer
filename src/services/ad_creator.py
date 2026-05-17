@@ -42,6 +42,57 @@ from src.vk_ads.client import VKAdsAPIError, VKAdsClient
 logger = logging.getLogger(__name__)
 
 
+def _enhance_image_for_ads(img):
+    """Базовая коррекция фото для повышения CTR в ленте VK.
+
+    Phase 5.11 (17.05.2026): обработка картинок для большей "кликабельности"
+    в мобильной ленте. Особенно полезно для AI-сгенерированных фото
+    (плосковатый контраст, бледные цвета).
+
+    Применяется автоматически перед загрузкой во всех методах создания
+    кампаний (create_age_split_campaign, create_smoke_test_campaign,
+    create_batch_campaigns).
+
+    Что делает (умеренные значения, не "кричащий Instagram-фильтр"):
+    1. Auto-contrast (cutoff=1%): обрезает самые тёмные и светлые 1% пикселей
+       и растягивает гистограмму. Тёмное темнеет, светлое светлеет — фото
+       "оживает".
+    2. Насыщенность +12%: тёплые тона (свечи, золото, амбер) усиливаются.
+       Для православной эстетики работает хорошо.
+    3. Контраст +8%: чёткое отделение фигуры от фона.
+    4. Резкость +18%: мобильная лента маленькая, без резкости фото
+       "размазано" глазом.
+
+    Будущее (Phase 8+): полноценный медиа-агент Артём с подключением к
+    OpenAI gpt-image-1 для edit/inpainting и vision для анализа что
+    улучшить точечно.
+
+    Args:
+        img: PIL.Image объект (любой mode — внутри конвертируется в RGB)
+
+    Returns:
+        PIL.Image — улучшенный RGB image той же размерности
+    """
+    from PIL import ImageEnhance, ImageOps
+
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+
+    # Auto-contrast — самое сильное улучшение для большинства фото
+    img = ImageOps.autocontrast(img, cutoff=1)
+
+    # Насыщенность — усиливаем "тёплые" православные тона
+    img = ImageEnhance.Color(img).enhance(1.12)
+
+    # Контраст — чёткое отделение фигуры
+    img = ImageEnhance.Contrast(img).enhance(1.08)
+
+    # Резкость — критично для мобильной ленты
+    img = ImageEnhance.Sharpness(img).enhance(1.18)
+
+    return img
+
+
 # DEFAULT_PADS — справочный список ID площадок (placements) для package_id 3122.
 # Эти ID взяты из реальной кампании 20865519, успешно созданной через UI кабинета
 # (см. /inspect в боте — раздел ad_groups[].targetings.pads).
@@ -194,6 +245,8 @@ class AdCreator:
             left = (w - side) // 2
             top = (h - side) // 2
             src_square = src.crop((left, top, left + side, top + side))
+            src_square = _enhance_image_for_ads(src_square)
+
 
             def _bytes_at(size: int) -> bytes:
                 resized = src_square.resize((size, size), Image.Resampling.LANCZOS)
@@ -489,6 +542,8 @@ class AdCreator:
             left = (w - side) // 2
             top = (h - side) // 2
             src_square = src.crop((left, top, left + side, top + side))
+            src_square = _enhance_image_for_ads(src_square)
+
 
             def _bytes_at(size: int) -> bytes:
                 resized = src_square.resize((size, size), Image.Resampling.LANCZOS)
@@ -805,6 +860,9 @@ class AdCreator:
             top = (h - side) // 2
             src_square = src.crop((left, top, left + side, top + side))
 
+            # Phase 5.11: enhance для повышения CTR в мобильной ленте
+            src_square = _enhance_image_for_ads(src_square)
+
             def _bytes_at(size: int) -> bytes:
                 resized = src_square.resize((size, size), Image.Resampling.LANCZOS)
                 buf = BytesIO()
@@ -945,6 +1003,140 @@ class AdCreator:
             banner_ids=banner_ids,
             raw=response,
         )
+
+    async def create_batch_campaigns(
+        self,
+        *,
+        images_by_age: dict[tuple[int, int], bytes],
+        copies_by_age: dict[tuple[int, int], list[AdCopy]],
+        community_url: str,
+        daily_budget_rub_per_campaign: int = 500,
+        days_duration: int = 2,
+        sex: list[str] | None = None,
+        geo_regions: list[int] | None = None,
+        package_id: int = 3127,
+    ) -> list[CampaignSummary]:
+        """Phase 5.11: батчевый запуск множества кампаний под калибровочный цикл.
+
+        Создаёт N кампаний параллельно, по одной на комбинацию
+        «возраст × креатив». Логика: для каждой возрастной группы — одна
+        картинка и несколько (1-4) текстов. Каждый текст = отдельная
+        кампания со своим бюджетом, чтобы статистика по текстам не
+        смешивалась.
+
+        Пример использования (3 возраста × 4 текста = 12 кампаний):
+            await creator.create_batch_campaigns(
+                images_by_age={
+                    (41, 46): photo_1_bytes,
+                    (47, 52): photo_3_bytes,
+                    (53, 58): photo_5_bytes,
+                },
+                copies_by_age={
+                    (41, 46): [copy_a, copy_b, copy_c, copy_d],
+                    (47, 52): [copy_e, copy_f, copy_g, copy_h],
+                    (53, 58): [copy_i, copy_j, copy_k, copy_l],
+                },
+                community_url="https://vk.com/pomolimsy",
+                daily_budget_rub_per_campaign=500,
+                days_duration=2,
+            )
+
+        Args:
+            images_by_age: словарь {(age_min, age_max): image_bytes}
+            copies_by_age: словарь {(age_min, age_max): [AdCopy, ...]}
+            community_url: URL сообщества
+            daily_budget_rub_per_campaign: бюджет на одну кампанию (500₽/день)
+            days_duration: длительность каждой кампании в днях (по умолч. 2)
+            sex, geo_regions, package_id: те же defaults что в smoke_test
+
+        Returns:
+            list[CampaignSummary] — по одному на каждую созданную кампанию.
+            Если одна из кампаний упала — она просто отсутствует в списке,
+            остальные продолжают. Логируется warning.
+
+        Raises:
+            AdCreatorError: только если ВСЕ кампании упали или конфигурация
+                невалидна (отсутствуют фото/копии для какого-то возраста).
+        """
+        # Валидация
+        if not images_by_age:
+            raise AdCreatorError("images_by_age пустой — нечего запускать")
+        if not copies_by_age:
+            raise AdCreatorError("copies_by_age пустой — нечего запускать")
+
+        for age_key in images_by_age:
+            if age_key not in copies_by_age:
+                raise AdCreatorError(
+                    f"Для возраста {age_key} есть фото но нет copies"
+                )
+            if not copies_by_age[age_key]:
+                raise AdCreatorError(
+                    f"Для возраста {age_key} список copies пуст"
+                )
+
+        total_campaigns = sum(len(v) for v in copies_by_age.values())
+        logger.info(
+            f"[batch] Запускаю {total_campaigns} кампаний "
+            f"({len(images_by_age)} возрастов, "
+            f"{daily_budget_rub_per_campaign}₽/день × {days_duration} дн = "
+            f"{daily_budget_rub_per_campaign * days_duration}₽/кампания)"
+        )
+
+        results: list[CampaignSummary] = []
+        errors: list[tuple[tuple[int, int], int, str]] = []
+
+        for age_key, image_bytes in images_by_age.items():
+            copies = copies_by_age[age_key]
+            age_min, age_max = age_key
+
+            for idx, copy in enumerate(copies, start=1):
+                # Имя для удобства в кабинете VK Ads
+                campaign_name = (
+                    f"batch ж{age_min}-{age_max} "
+                    f"вариант {idx}: {copy.title[:25]}"
+                )
+
+                logger.info(
+                    f"[batch {len(results) + len(errors) + 1}/{total_campaigns}] "
+                    f"Создаю: {campaign_name}"
+                )
+
+                try:
+                    summary = await self.create_smoke_test_campaign(
+                        image_bytes=image_bytes,
+                        copies=[copy],  # один текст на кампанию (не A/B внутри)
+                        community_url=community_url,
+                        daily_budget_rub=daily_budget_rub_per_campaign,
+                        days_duration=days_duration,
+                        age_min=age_min,
+                        age_max=age_max,
+                        sex=sex,
+                        geo_regions=geo_regions,
+                        package_id=package_id,
+                        campaign_name=campaign_name,
+                    )
+                    results.append(summary)
+                    logger.info(
+                        f"[batch] ✅ {campaign_name} → ad_plan_id={summary.ad_plan_id}"
+                    )
+                except Exception as e:
+                    error_msg = f"{type(e).__name__}: {e}"
+                    errors.append((age_key, idx, error_msg))
+                    logger.warning(
+                        f"[batch] ❌ {campaign_name} провалилась: {error_msg}"
+                    )
+
+        if not results:
+            raise AdCreatorError(
+                f"Все {total_campaigns} кампаний провалились. "
+                f"Первые 3 ошибки: {errors[:3]}"
+            )
+
+        logger.info(
+            f"[batch] Готово: {len(results)}/{total_campaigns} успешно, "
+            f"{len(errors)} провалов"
+        )
+        return results
 
 
 # Сплит возрастов. По дефолту ОДНА группа (для тестирования с малым балансом) —

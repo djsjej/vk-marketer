@@ -21,6 +21,7 @@ from src.telegram_bot.handlers import (
     handle_photo,
     handle_text,
     inspect_command,
+    launch_batch_command,
     launch_test_command,
     menu_callback,
     menu_command,
@@ -98,6 +99,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("audience_from_list", audience_from_list_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("launch_batch", launch_batch_command, filters=owner_filter)
     )
     application.add_handler(
         CommandHandler("menu", menu_command, filters=owner_filter)

@@ -449,12 +449,15 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Получили фото — скачиваем, генерим варианты текста, показываем для выбора.
 
-    Phase 5.9: если выставлен флаг ожидания фото для smoke test —
-    приоритетно вызываем handle_smoke_test_photo, не идём в обычный
-    фото-flow. Smoke test использует другую логику (захардкоженные
-    тексты A/B, одна кампания не split по возрастам).
+    Phase 5.11: batch режим имеет приоритет над smoke test и обычным фото-flow.
+    Phase 5.9: smoke test проверяется вторым.
+    Обычный фото-flow — третьим (когда нет специальных режимов).
     """
-    # Phase 5.9: проверка флага smoke test ПЕРЕД обычной логикой
+    # Phase 5.11: batch режим (12 кампаний за 3 фото)
+    if await handle_batch_photo(update, context):
+        return
+
+    # Phase 5.9: smoke test (одно фото → одна кампания)
     if await handle_smoke_test_photo(update, context):
         return
 
@@ -2413,3 +2416,289 @@ async def audience_from_list_command(
         f"audience_from_list: создан Segment id={segment_id}, "
         f"users_list={users_list_id}, name={segment_name}"
     )
+
+
+# ============================================================
+# Phase 5.11 (17.05.2026) — команда /launch_batch
+# ============================================================
+#
+# Параллельный калибровочный запуск множества кампаний.
+#
+# По плану Vizit'a + Бобы:
+# - 3 возраста (41-46, 47-52, 53-58)
+# - 4 текста на возраст (разные жизненные ситуации/боли)
+# - 3 фото (одно на возраст)
+# - 12 кампаний × 500₽/день × 2 дня = 12 000₽ total
+# - Через 24 часа: метрики, отключение слабых, удвоение бюджета сильным
+#
+# Workflow:
+# 1. /launch_batch → бот ставит флаг ожидания 3 фото
+# 2. Vizit присылает фото 1 (для 41-46)
+# 3. Бот: "получил, жду фото для 47-52"
+# 4. Vizit присылает фото 3 (для 47-52)
+# 5. Бот: "получил, жду фото для 53-58"
+# 6. Vizit присылает фото 5 (для 53-58)
+# 7. Бот запускает create_batch_campaigns с 12 текстами + 3 фото
+# 8. Возвращает список ad_plan_id
+
+# 12 текстов для калибровочного запуска (одобрены Vizit'ом 17.05.2026)
+# Разные жизненные ситуации, без шаблонов, "не убеждать что православие
+# существует — сразу к боли"
+BATCH_COPIES_41_46 = [
+    {
+        "title": "Молитва за ребёнка",
+        "text": "Когда тревожно за ребёнка, нет ничего сильнее молитвы. Напишите имя — добавим в молитвенное правило.",
+        "about": "Молитвенное сообщество. Напишите имя ребёнка.",
+    },
+    {
+        "title": "О здравии родителей",
+        "text": "Родители стареют, а мы всё заняты. Простое дело — напишите их имена. Помолимся о здравии.",
+        "about": "Молитвенное сообщество. О здравии родителей.",
+    },
+    {
+        "title": "Молитва за семью",
+        "text": "Сильная женщина держит семью. Молитвенная помощь — не лишняя. Напишите имена близких.",
+        "about": "Молитвенное сообщество. Молитва за семью.",
+    },
+    {
+        "title": "Имя. Просьба. Молитва.",
+        "text": "Имя. Просьба. Молитва. Напишите имя того, за кого болит сердце.",
+        "about": "Молитвенное сообщество. Напишите имена.",
+    },
+]
+
+BATCH_COPIES_47_52 = [
+    {
+        "title": "За тех кто на пороге",
+        "text": "Дети растут — экзамены, выбор пути, отношения. Молитесь о них спокойно — напишите имя, мы поддержим.",
+        "about": "Молитвенное сообщество. Молитва о детях.",
+    },
+    {
+        "title": "Молитва о больном",
+        "text": "Когда близкий болеет, нужна молитва. Напишите имя того, за кого болит душа. Помолимся вместе.",
+        "about": "Молитвенное сообщество. О здравии болящего.",
+    },
+    {
+        "title": "О помощи в труде",
+        "text": "Когда силы на исходе — а решения нужно принимать каждый день. Напишите имя — помолимся о труде и разуме.",
+        "about": "Молитвенное сообщество. О помощи в труде.",
+    },
+    {
+        "title": "Молитва общины",
+        "text": "В нашей общине пишут имена. Больных. Страдающих. Ушедших. Каждое имя становится молитвой. Присоединяйтесь.",
+        "about": "Молитвенное сообщество. Молимся за каждого.",
+    },
+]
+
+BATCH_COPIES_53_58 = [
+    {
+        "title": "Помяните дорогих ушедших",
+        "text": "Они ушли — но остались в сердце. И в молитве. Напишите имена ушедших близких — помянем.",
+        "about": "Молитвенное сообщество. Об упокоении.",
+    },
+    {
+        "title": "О ваших внуках",
+        "text": "Внуки — наша радость и забота. Напишите имена — помолимся об их здравии, мире в семьях, разуме.",
+        "about": "Молитвенное сообщество. Молитва о внуках.",
+    },
+    {
+        "title": "Когда тяжело",
+        "text": "Бывают дни, когда сил нет, а слова не выходят. Просто напишите имя — мы помолимся за вас.",
+        "about": "Молитвенное сообщество. Поддержка молитвой.",
+    },
+    {
+        "title": "Имя — это память",
+        "text": "Имя — это память. Имя — это молитва. Напишите имена тех, о ком болит душа.",
+        "about": "Молитвенное сообщество. Память и молитва.",
+    },
+]
+
+# Возрастные группы и тексты — соответствие
+BATCH_AGE_TO_COPIES = {
+    (41, 46): BATCH_COPIES_41_46,
+    (47, 52): BATCH_COPIES_47_52,
+    (53, 58): BATCH_COPIES_53_58,
+}
+
+# Порядок в котором ждём фото
+BATCH_AGE_ORDER = [(41, 46), (47, 52), (53, 58)]
+
+
+async def launch_batch_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Запускает калибровочный батч из 12 кампаний (3 возраста × 4 текста).
+
+    Параметры зашиты в коде (одобрены Vizit'ом 17.05.2026):
+    - 3 возраста: 41-46, 47-52, 53-58
+    - 4 текста на возраст (разные жизненные ситуации)
+    - 1 фото на возраст (Vizit прислает 3 фото последовательно)
+    - 500₽/день × 2 дня = 1000₽ на кампанию
+    - Total: 12 × 1000 = 12 000₽
+    """
+    from src.config import settings
+    segments = settings.vk_audience_segment_ids_parsed
+    if not segments:
+        await update.message.reply_text(
+            "❌ В Railway env не задан `VK_AUDIENCE_SEGMENT_IDS`.",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Стартуем pipeline: жду первое фото (для 41-46)
+    context.user_data["batch_mode"] = True
+    context.user_data["batch_photos"] = {}  # {(age_min, age_max): bytes}
+    context.user_data["batch_current_age_idx"] = 0  # индекс в BATCH_AGE_ORDER
+
+    first_age = BATCH_AGE_ORDER[0]
+
+    await update.message.reply_text(
+        f"🎬 *Калибровочный батч готов к запуску*\n\n"
+        f"Параметры (захардкожены):\n"
+        f"— **3 возраста:** 41-46, 47-52, 53-58\n"
+        f"— **4 текста** на каждый возраст (разные ситуации/боли)\n"
+        f"— **12 кампаний** = 3 × 4\n"
+        f"— **Бюджет:** 500₽/день × 2 дня = 1000₽ на кампанию\n"
+        f"— **Всего:** 12 000₽ за 2 дня\n"
+        f"— **Сегмент:** {segments[0]}\n"
+        f"— **Цель:** «Написать сообщение» (package 3127)\n\n"
+        f"*Принимаю 3 фото последовательно* — по одному на каждый возраст.\n\n"
+        f"📷 *Шаг 1/3:* пришли фото для возраста *{first_age[0]}-{first_age[1]}* "
+        f"(молодые мамы, рекомендую картинку 1 — монах с чётками).\n\n"
+        f"Чтобы отменить — напиши «отмена».",
+        parse_mode="Markdown",
+    )
+
+
+async def handle_batch_photo(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    """Обработчик фото в режиме batch. Принимает фото последовательно,
+    после 3-го запускает создание 12 кампаний.
+
+    Returns:
+        True если обработали (handle_photo не должен дальше обрабатывать),
+        False если не в режиме batch.
+    """
+    if not context.user_data.get("batch_mode"):
+        return False
+
+    current_idx = context.user_data.get("batch_current_age_idx", 0)
+    if current_idx >= len(BATCH_AGE_ORDER):
+        # Аномалия — выходим из режима
+        context.user_data["batch_mode"] = False
+        return True
+
+    current_age = BATCH_AGE_ORDER[current_idx]
+
+    # Скачиваем фото
+    photo = update.message.photo[-1]
+    try:
+        tg_file = await photo.get_file()
+        image_bytes = bytes(await tg_file.download_as_bytearray())
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Не смог скачать фото: `{type(e).__name__}: {e}`. "
+            f"Перезапусти `/launch_batch`.",
+            parse_mode="Markdown",
+        )
+        context.user_data["batch_mode"] = False
+        return True
+
+    # Сохраняем фото для текущего возраста
+    context.user_data["batch_photos"][current_age] = image_bytes
+    next_idx = current_idx + 1
+    context.user_data["batch_current_age_idx"] = next_idx
+
+    # Если ещё есть возрасты — ждём следующего фото
+    if next_idx < len(BATCH_AGE_ORDER):
+        next_age = BATCH_AGE_ORDER[next_idx]
+        age_hint = {
+            (47, 52): "(зрелые, рекомендую картинку 3 — руки пишут в книге)",
+            (53, 58): "(старшие, рекомендую картинку 5 — монах пишет в большой книге)",
+        }.get(next_age, "")
+        await update.message.reply_text(
+            f"✅ Фото для *{current_age[0]}-{current_age[1]}* принято "
+            f"({len(image_bytes) // 1024} KB).\n\n"
+            f"📷 *Шаг {next_idx + 1}/3:* теперь фото для возраста "
+            f"*{next_age[0]}-{next_age[1]}* {age_hint}.",
+            parse_mode="Markdown",
+        )
+        return True
+
+    # Получили все 3 фото — запускаем батч
+    await update.message.reply_text(
+        f"✅ Все 3 фото получены. Запускаю 12 кампаний... "
+        f"(~5-10 минут, по 30-60 сек на каждую кампанию)"
+    )
+
+    try:
+        from src.services.ad_creator import AdCopy, AdCreator
+        from src.vk_ads.client import VKAdsClient
+
+        ads_client = VKAdsClient.from_settings()
+        if ads_client is None:
+            await update.message.reply_text(
+                "❌ VK Ads клиент не настроен."
+            )
+            context.user_data["batch_mode"] = False
+            return True
+
+        ad_creator = AdCreator(ads_client)
+
+        # Готовим copies_by_age
+        copies_by_age = {}
+        for age_key, copy_dicts in BATCH_AGE_TO_COPIES.items():
+            copies_by_age[age_key] = [
+                AdCopy(
+                    title=d["title"],
+                    text=d["text"],
+                    about=d["about"],
+                    cta="write",  # для package 3127
+                )
+                for d in copy_dicts
+            ]
+
+        results = await ad_creator.create_batch_campaigns(
+            images_by_age=context.user_data["batch_photos"],
+            copies_by_age=copies_by_age,
+            community_url="https://vk.com/pomolimsy",
+            daily_budget_rub_per_campaign=500,
+            days_duration=2,
+        )
+    except Exception as e:
+        logger.exception("Batch campaigns creation failed")
+        await update.message.reply_text(
+            f"❌ Не смог создать батч: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        context.user_data["batch_mode"] = False
+        return True
+
+    # Финальный отчёт
+    ids_summary = "\n".join(
+        f"   • Кампания #{i+1}: `{r.ad_plan_id}`"
+        for i, r in enumerate(results)
+    )
+    await update.message.reply_text(
+        f"✅ *Батч запущен!*\n\n"
+        f"Создано: *{len(results)} из 12 кампаний*\n"
+        f"Бюджет: 500₽/день × 2 дня на каждую = ~{len(results) * 1000}₽ total\n\n"
+        f"*ID кампаний:*\n{ids_summary}\n\n"
+        f"*Что дальше:*\n"
+        f"1. Все кампании на модерации (4 часа обычно)\n"
+        f"2. Через 24 часа после запуска — `/boba стат батча` для метрик\n"
+        f"3. Слабые отключаем, на сильные удваиваем бюджет\n\n"
+        f"_В кабинете VK Ads → Кампании → фильтр по имени `batch` ._",
+        parse_mode="Markdown",
+    )
+
+    context.user_data["batch_mode"] = False
+    context.user_data.pop("batch_photos", None)
+    context.user_data.pop("batch_current_age_idx", None)
+
+    logger.info(
+        f"launch_batch: создано {len(results)}/12 кампаний, "
+        f"ids={[r.ad_plan_id for r in results]}"
+    )
+    return True
