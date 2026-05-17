@@ -727,6 +727,43 @@ class VKAdsClient:
         items = response.get("items", []) if isinstance(response, dict) else []
         return items
 
+    async def update_ad_plan_budget(
+        self, ad_plan_id: int, daily_budget_rub: int
+    ) -> dict:
+        """Обновить дневной бюджет кампании.
+
+        POST /ad_plans/<id>.json со словарём только с budget_limit_day.
+        Используется для регулировки бюджета без полного апдейта.
+
+        В CBO режиме (наш случай) — нужно также обновлять budget_limit_day
+        у всех ad_groups внутри кампании, иначе будет рассинхрон.
+        """
+        return await self._request(
+            "POST",
+            f"/ad_plans/{ad_plan_id}.json",
+            json_body={"budget_limit_day": daily_budget_rub},
+        )
+
+    async def update_ad_group_budget(
+        self, ad_group_id: int, daily_budget_rub: int
+    ) -> dict:
+        """Обновить дневной бюджет ad_group (для синхронизации с ad_plan в CBO)."""
+        return await self._request(
+            "POST",
+            f"/ad_groups/{ad_group_id}.json",
+            json_body={"budget_limit_day": daily_budget_rub},
+        )
+
+    async def get_ad_groups_for_campaign(self, ad_plan_id: int) -> list[dict]:
+        """Получить все ad_groups внутри кампании."""
+        response = await self._request(
+            "GET",
+            "/ad_groups.json",
+            params={"_ad_plan_id": ad_plan_id, "limit": 100},
+        )
+        items = response.get("items", []) if isinstance(response, dict) else []
+        return items
+
     async def create_ad_group(self, payload: dict) -> dict:
         """Создать группу объявлений отдельно.
 

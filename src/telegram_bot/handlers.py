@@ -3011,3 +3011,144 @@ def _format_stats_simple(stats) -> str:
     if stats.leads > 0:
         parts.append(f"📬 *написали {stats.leads}!*")
     return ", ".join(parts) if parts else "нет данных"
+
+
+# ============================================================
+# Phase 5.17 (17.05.2026) — массовое обновление бюджета batch-кампаний
+# ============================================================
+#
+# Vizit идёт спать на 8-9 часов, хочет снизить бюджет с 500₽ до 300₽ на
+# каждую batch-кампанию чтобы меньше тратить пока он не сможет реагировать.
+# Команда /set_batch_budget <сумма> — массово обновляет все активные
+# кампании с именем начинающимся на 'batch'.
+
+
+async def set_batch_budget_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Массово установить дневной бюджет для всех batch-кампаний.
+
+    Использование: /set_batch_budget <сумма_в_рублях>
+    Пример: /set_batch_budget 300
+
+    Обновляет budget_limit_day на уровне ad_plan И на уровне каждого
+    вложенного ad_group (необходимо в CBO режиме для синхронизации).
+
+    Фильтрация: только кампании имя которых начинается на 'batch'
+    (наши из /launch_batch). Старые тестовые и smoke_test не трогаются.
+    """
+    args = context.args or []
+    if not args:
+        await update.message.reply_text(
+            "📖 Использование: `/set_batch_budget <сумма>`\n\n"
+            "Пример: `/set_batch_budget 300` — установит 300₽/день\n"
+            "на все активные кампании с именем начинающимся на 'batch'.\n\n"
+            "Минимум 100₽ (лимит VK Ads).",
+            parse_mode="Markdown",
+        )
+        return
+
+    try:
+        new_budget = int(args[0])
+    except ValueError:
+        await update.message.reply_text(
+            f"❌ Бюджет должен быть числом, передано: `{args[0]}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    if new_budget < 100:
+        await update.message.reply_text(
+            "❌ Минимум 100₽/день — это лимит VK Ads. Меньше не примет."
+        )
+        return
+
+    await update.message.reply_text(
+        f"🔄 Меняю бюджет на {new_budget}₽/день для всех batch-кампаний... "
+        f"(10-30 секунд)"
+    )
+
+    from src.vk_ads.client import VKAdsClient
+    client = VKAdsClient.from_settings()
+    if client is None:
+        await update.message.reply_text("❌ VK Ads клиент не настроен.")
+        return
+
+    try:
+        active = await client.get_active_ad_plans()
+    except Exception as e:
+        logger.exception("set_batch_budget: failed to get active")
+        await update.message.reply_text(
+            f"❌ Не смог получить список: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Фильтруем только batch-кампании
+    batch_campaigns = [
+        c for c in active
+        if c.get("name", "").startswith("batch")
+    ]
+
+    if not batch_campaigns:
+        await update.message.reply_text(
+            "ℹ️ Активных batch-кампаний не нашёл. "
+            "Возможно ещё на модерации или имена другие."
+        )
+        return
+
+    success_plans = 0
+    success_groups = 0
+    failed: list[tuple[int, str]] = []
+
+    for camp in batch_campaigns:
+        cid = int(camp["id"])
+        name = camp.get("name", "?")[:40]
+
+        # 1) Обновляем ad_plan
+        try:
+            await client.update_ad_plan_budget(cid, new_budget)
+            success_plans += 1
+        except Exception as e:
+            failed.append((cid, f"ad_plan: {type(e).__name__}"))
+            continue
+
+        # 2) Обновляем все ad_groups внутри
+        try:
+            groups = await client.get_ad_groups_for_campaign(cid)
+            for g in groups:
+                gid = int(g["id"])
+                try:
+                    await client.update_ad_group_budget(gid, new_budget)
+                    success_groups += 1
+                except Exception as e:
+                    failed.append(
+                        (gid, f"ad_group: {type(e).__name__}")
+                    )
+        except Exception as e:
+            failed.append((cid, f"get_groups: {type(e).__name__}"))
+
+    msg = (
+        f"✅ *Бюджет обновлён на {new_budget}₽/день*\n\n"
+        f"Кампаний обновлено: {success_plans}/{len(batch_campaigns)}\n"
+        f"Групп внутри обновлено: {success_groups}\n"
+    )
+    if failed:
+        msg += f"\n⚠️ Ошибки ({len(failed)}):"
+        for fid, err in failed[:5]:
+            msg += f"\n• `{fid}` — {err}"
+        if len(failed) > 5:
+            msg += f"\n• ...и ещё {len(failed) - 5}"
+
+    msg += (
+        f"\n\n_В CBO режиме VK сам распределит бюджет между группами. "
+        f"При 12 кампаниях × {new_budget}₽/день общий поток = "
+        f"{12 * new_budget}₽/день._"
+    )
+
+    await update.message.reply_text(msg, parse_mode="Markdown")
+    logger.info(
+        f"set_batch_budget: установил {new_budget}₽/день для "
+        f"{success_plans} кампаний, {success_groups} групп, "
+        f"провалов {len(failed)}"
+    )
