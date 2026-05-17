@@ -136,3 +136,85 @@ def test_aggregate_resilient_to_garbage_spent():
     assert stats is not None
     assert stats.impressions == 600
     assert stats.spent_rub == 50.5  # только валидный, остальные пропущены
+
+
+# ============================================================================
+# Конверсии в сообщения сообщества (package_id 3127, Phase 5.16)
+#
+# Регрессия: до 17.05.2026 хелпер считал `leads` только как `events.joinings`
+# (вступления в группу, package_id 3122). Но у текущей кампании цель —
+# «Написать в сообщество» (package_id 3127), и VK возвращает эту конверсию
+# в поле `social_network.vk_message`. Из-за этого сторож видел leads=0 у
+# всех кампаний, считал что плохо, и алертил по CTR — а реально 6 человек
+# уже написали в сообщество.
+# ============================================================================
+
+
+def test_aggregate_counts_vk_message_as_leads():
+    """Главный кейс: реальный ответ VK с конверсиями в `social_network.vk_message`."""
+    item = {
+        "id": 21162592,
+        "rows": [
+            {
+                "date": "2026-05-17",
+                "base": {"shows": 1705, "clicks": 3, "spent": "550"},
+                "events": {"joinings": 0},
+                "social_network": {"vk_message": 1, "vk_join": 0},
+            }
+        ],
+    }
+    stats = aggregate_stats_item(item)
+    assert stats is not None
+    assert stats.leads == 1, "vk_message=1 должен считаться как лид"
+
+
+def test_aggregate_takes_max_of_joinings_and_vk_message():
+    """Если кампания (вдруг) имеет обе конверсии — берём максимум,
+    а не сумму. Так мы не дублируем одну и ту же аудиторию."""
+    item = {
+        "id": 1,
+        "rows": [
+            {
+                "base": {"shows": 1000, "clicks": 50, "spent": "500"},
+                "events": {"joinings": 3},
+                "social_network": {"vk_message": 7},
+            }
+        ],
+    }
+    stats = aggregate_stats_item(item)
+    assert stats is not None
+    assert stats.leads == 7, "Должен взять max(3, 7), а не sum"
+
+
+def test_aggregate_handles_missing_social_network_block():
+    """Старый формат / package_id 3122 — нет блока social_network, есть joinings.
+    Должны корректно вернуть joinings."""
+    item = {
+        "id": 1,
+        "rows": [
+            {
+                "base": {"shows": 1000, "clicks": 50, "spent": "500"},
+                "events": {"joinings": 4},
+                # social_network отсутствует
+            }
+        ],
+    }
+    stats = aggregate_stats_item(item)
+    assert stats is not None
+    assert stats.leads == 4
+
+
+def test_aggregate_sums_vk_message_across_days():
+    """vk_message суммируется по дням так же как остальные метрики."""
+    item = {
+        "id": 1,
+        "rows": [
+            {"base": {"spent": "100"}, "social_network": {"vk_message": 2}},
+            {"base": {"spent": "150"}, "social_network": {"vk_message": 3}},
+            {"base": {"spent": "200"}, "social_network": {"vk_message": 1}},
+        ],
+    }
+    stats = aggregate_stats_item(item)
+    assert stats is not None
+    assert stats.leads == 6
+    assert stats.spent_rub == 450.0

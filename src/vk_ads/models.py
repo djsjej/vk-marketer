@@ -120,9 +120,11 @@ def aggregate_stats_item(item: dict) -> CampaignStats | None:
     total_clicks = 0
     total_spent = 0.0
     total_joinings = 0
+    total_vk_messages = 0
     for r in rows:
         base = r.get("base") or {}
         events = r.get("events") or {}
+        social_network = r.get("social_network") or {}
         total_shows += int(base.get("shows", 0) or 0)
         total_clicks += int(base.get("clicks", 0) or 0)
         # spent в API приходит строкой ("123.45") — приводим аккуратно.
@@ -130,12 +132,23 @@ def aggregate_stats_item(item: dict) -> CampaignStats | None:
             total_spent += float(base.get("spent", 0) or 0)
         except (TypeError, ValueError):
             pass
+        # У нас в проекте две разных цели:
+        #  - package_id 3122 → вступления в группу (events.joinings)
+        #  - package_id 3127 → сообщения в сообщество (social_network.vk_message)
+        # `aggregate_stats_item` не знает objective конкретной кампании,
+        # поэтому берёт максимум: какая бы цель ни была у кампании, её
+        # конверсии будут учтены в `leads`. Кейс «одновременно есть и
+        # joinings и vk_message» крайне редкий (в большинстве кампаний
+        # одна цель), max в этом случае возьмёт большую — это допустимо.
+        # Полное разделение по objective — Phase 4 (когда сторож начнёт
+        # понимать тип цели каждой конкретной кампании).
         total_joinings += int(events.get("joinings", 0) or 0)
+        total_vk_messages += int(social_network.get("vk_message", 0) or 0)
 
     return CampaignStats(
         campaign_id=cid,
         impressions=total_shows,
         clicks=total_clicks,
         spent_rub=total_spent,
-        leads=total_joinings,
+        leads=max(total_joinings, total_vk_messages),
     )

@@ -1,8 +1,13 @@
-"""Тесты Phase 5.12 — Сторож (auto-monitoring рекламы).
+"""Тесты Сторожа (auto-monitoring рекламы).
 
-Сторож проверяет активные кампании каждый час, при пробитии порогов
-(CTR, CPC, нулевые конверсии) шлёт алерт. Auto-pause нет — Vizit сам
-выключает через /pause или /kill_bad.
+Сторож проверяет активные кампании каждый час, при провале по CPL шлёт
+алерт. Auto-pause нет — Vizit сам выключает через /pause или /kill_bad.
+
+История: до 17.05.2026 (Phase 5.12-5.14) сторож алертил по CTR и CPC.
+17.05 после провального батча (CPL = 367₽ при норме ≤50₽) переписан на
+CPL-based анализ (Phase 5.16). Эти тесты — регрессия на новые правила
+и явная проверка что старые срабатывания (низкий CTR / дорогой CPC)
+больше не триггерят алерт, если главная метрика — CPL — в норме.
 """
 
 from __future__ import annotations
@@ -11,66 +16,64 @@ from src.scheduler.safety import check_campaign_anomaly
 from src.vk_ads.models import CampaignStats
 
 
-def test_low_ctr_alerts():
-    """CTR < 0.3% при показах >= 1500 → alert."""
+# ============================================================================
+# Регрессии на старые правила — теперь они НЕ должны срабатывать,
+# если CPL в норме. Это часть Phase 5.16 фикса: главная метрика
+# теперь CPL, CTR и CPC вторичны.
+# ============================================================================
+
+
+def test_low_ctr_no_longer_alerts_when_cpl_normal():
+    """CTR 0.2% (низкий) но CPL 40₽ (в норме) → ok.
+    До Phase 5.16 эта кампания получала бы алерт «низкий CTR»."""
     stats = CampaignStats(
         campaign_id=100,
         impressions=2000,
         clicks=4,  # CTR = 0.2%
         spent_rub=200,
-        leads=0,
-    )
-    decision = check_campaign_anomaly(stats)
-    assert decision.action == "alert"
-    assert "кликнули" in decision.reason
-    assert 100 in decision.affected_ids
-
-
-def test_low_ctr_but_few_impressions_ok():
-    """CTR < 0.3% но показов < 1500 → ok (статистика мала)."""
-    stats = CampaignStats(
-        campaign_id=100,
-        impressions=500,
-        clicks=1,  # CTR = 0.2%, но показов мало
-        spent_rub=100,
-        leads=0,
+        leads=5,  # CPL = 40₽ — в норме
     )
     decision = check_campaign_anomaly(stats)
     assert decision.action == "ok"
 
 
-def test_high_cpc_alerts():
-    """CPC > 30₽ при кликах >= 30 → alert."""
+def test_high_cpc_no_longer_alerts_when_cpl_normal():
+    """CPC 37.5₽ (выше старого порога 30₽) но CPL 30₽ (хорошо) → ok.
+    Дорогие клики прощаются если конверсия их компенсирует."""
     stats = CampaignStats(
         campaign_id=200,
         impressions=5000,
         clicks=40,
         spent_rub=1500,  # CPC = 37.5₽
-        leads=2,
+        leads=50,  # CPL = 30₽ — хорошо
     )
     decision = check_campaign_anomaly(stats)
-    assert decision.action == "alert"
-    assert "переплачиваем" in decision.reason
-    assert 200 in decision.affected_ids
-
-
-def test_high_cpc_but_few_clicks_ok():
-    """CPC высокий но кликов < 30 → ok (мало данных)."""
-    stats = CampaignStats(
-        campaign_id=200,
-        impressions=1000,
-        clicks=5,
-        spent_rub=200,  # CPC = 40₽, но кликов мало
-        leads=0,
-    )
-    decision = check_campaign_anomaly(stats)
-    # Этот случай попадёт под "low CTR" (5/1000=0.5%, выше порога 0.3%)
-    # значит должно быть ok
     assert decision.action == "ok"
 
 
-def test_no_conversions_at_high_spend_alerts():
-    """Потрачено 400+, кликов 20+, 0 конверсий → alert."""
+# ============================================================================
+# Главное правило сторожа — алерт по CPL > 50₽
+# ============================================================================
+
+
+def test_high_cpl_alerts():
+    """CPL = 100₽ (двойной норматив) → алерт."""
+    stats = CampaignStats(
+        campaign_id=42,
+        impressions=2000,
+        clicks=20,
+        spent_rub=500,
+        leads=5,  # CPL = 100₽
+    )
+    decision = check_campaign_anomaly(stats)
+    assert decision.action == "alert"
+    assert 42 in decision.affected_ids
+    assert "100" in decision.reason
+    assert "50" in decision.reason
+
+
+def test_no_conversions_at_significant_spend_alerts():
+    """Потрачено больше порога суждения, 0 лидов → алерт «никто не написал»."""
     stats = CampaignStats(
         campaign_id=300,
         impressions=3000,
@@ -80,20 +83,38 @@ def test_no_conversions_at_high_spend_alerts():
     )
     decision = check_campaign_anomaly(stats)
     assert decision.action == "alert"
-    assert "никто не написал" in decision.reason
+    assert "не написал" in decision.reason
 
 
-def test_good_campaign_passes():
-    """Нормальные метрики → ok."""
+def test_normal_cpl_passes():
+    """CPL = 40₽ (в норме) → ok."""
     stats = CampaignStats(
         campaign_id=400,
         impressions=5000,
-        clicks=50,  # CTR = 1.0%
-        spent_rub=500,  # CPC = 10₽
-        leads=5,
+        clicks=50,
+        spent_rub=200,
+        leads=5,  # CPL = 40₽
     )
     decision = check_campaign_anomaly(stats)
     assert decision.action == "ok"
+
+
+def test_excellent_cpl_passes():
+    """CPL = 20₽ (отлично) → ok."""
+    stats = CampaignStats(
+        campaign_id=401,
+        impressions=10000,
+        clicks=100,
+        spent_rub=200,
+        leads=10,  # CPL = 20₽
+    )
+    decision = check_campaign_anomaly(stats)
+    assert decision.action == "ok"
+
+
+# ============================================================================
+# In-memory state для /kill_bad
+# ============================================================================
 
 
 def test_bad_campaigns_state():
@@ -115,13 +136,13 @@ def test_bad_campaigns_state():
 
 
 def test_campaign_stats_cpc_property():
-    """CampaignStats.cpc_rub считается правильно."""
+    """CampaignStats.cpc_rub считается правильно (для UI/Алины,
+    но в правилах сторожа больше не используется)."""
     stats = CampaignStats(
         campaign_id=1, impressions=1000, clicks=50, spent_rub=500, leads=0
     )
     assert stats.cpc_rub == 10.0
 
-    # Деление на ноль обрабатывается
     stats_no_clicks = CampaignStats(
         campaign_id=1, impressions=1000, clicks=0, spent_rub=100, leads=0
     )
