@@ -1,4 +1,4 @@
-"""Точка входа приложения. Поднимает Telegram-бота и планировщик задач."""
+"""Точка входа приложения. Поднимает Telegram-бота(ов) и планировщик задач."""
 
 import asyncio
 import logging
@@ -8,6 +8,7 @@ from src.config import settings
 from src.db.session import init_db
 from src.scheduler.jobs import setup_scheduler
 from src.telegram_bot.bot import build_bot
+from src.telegram_bots.boba_bot import build_boba_application
 
 logger = logging.getLogger(__name__)
 
@@ -34,28 +35,44 @@ async def main() -> None:
     await init_db()
     logger.info("База данных инициализирована")
 
-    # Telegram бот
+    # Главный Telegram бот (Claude — диспетчер команд)
     application = build_bot()
     await application.initialize()
     await application.start()
     if application.updater:
         await application.updater.start_polling()
-    logger.info("Telegram-бот запущен")
+    logger.info("Главный Telegram-бот запущен")
 
-    # Планировщик задач
+    # Phase 5.15: Опционально — отдельный бот Бобы (если задан TG_BOT_BOBA_TOKEN)
+    boba_app = build_boba_application()
+    if boba_app:
+        await boba_app.initialize()
+        await boba_app.start()
+        if boba_app.updater:
+            await boba_app.updater.start_polling()
+        logger.info("Боба-бот запущен параллельно с главным")
+
+    # Планировщик задач (использует главный бот для отправки уведомлений)
     scheduler = setup_scheduler(application.bot)
     scheduler.start()
     logger.info("Планировщик задач запущен")
 
     # Уведомление владельцу о старте
     try:
-        await application.bot.send_message(
-            chat_id=settings.telegram_owner_id,
-            text="🚀 vk-marketer запущен и готов к работе.\n\n"
+        startup_msg = (
+            "🚀 vk-marketer запущен и готов к работе.\n\n"
             "Команды:\n"
             "/start — начало работы\n"
             "/help — справка\n"
-            "/status — статус кампаний",
+            "/status — статус кампаний"
+        )
+        if boba_app:
+            startup_msg += (
+                "\n\n👔 Боба-бот тоже запущен. Открой чат с ним и пиши /start."
+            )
+        await application.bot.send_message(
+            chat_id=settings.telegram_owner_id,
+            text=startup_msg,
         )
     except Exception as e:
         logger.warning(f"Не удалось отправить стартовое сообщение: {e}")
@@ -72,6 +89,11 @@ async def main() -> None:
             await application.updater.stop()
         await application.stop()
         await application.shutdown()
+        if boba_app:
+            if boba_app.updater:
+                await boba_app.updater.stop()
+            await boba_app.stop()
+            await boba_app.shutdown()
         logger.info("Приложение остановлено")
 
 

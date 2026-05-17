@@ -17,6 +17,15 @@ class Settings(BaseSettings):
     telegram_bot_token: str = Field(..., description="Токен бота от @BotFather")
     telegram_owner_id: int = Field(..., description="Telegram user_id владельца")
 
+    # Phase 5.15 (17.05.2026) — multi-bot архитектура.
+    # Каждый агент команды получает свой Telegram-бот через @BotFather.
+    # Когда токен задан в env — параллельно с главным ботом запускается
+    # отдельный Application с своей персоной и хендлерами.
+    # Начали с Бобы (стратег), потом добавим остальных.
+    tg_bot_boba_token: str | None = Field(
+        None, description="Токен бота Бобы (стратег команды)"
+    )
+
     # --- VK Реклама ---
     # Бот поддерживает два режима аутентификации:
     # 1. OAuth (предпочтительный): задаём VK_ADS_OAUTH_CLIENT_ID и VK_ADS_OAUTH_CLIENT_SECRET.
