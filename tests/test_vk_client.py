@@ -259,3 +259,147 @@ async def test_get_campaign_stats_builds_correct_url():
     assert route.call_count == 1
     request = route.calls[0].request
     assert "id=1%2C2%2C3" in str(request.url) or "id=1,2,3" in str(request.url)
+
+
+# ============================================================================
+# Phase 5.15 (17.05.2026) — пагинация в get_campaigns
+#
+# Регрессионный фикс. Реальный кабинет может содержать 30+ кампаний (старые
+# тестовые в deleted + 12 действующих batch). До фикса /status и /inspect
+# звали get_campaigns(limit=20) и видели только первые 20 — это был срез,
+# а не полное состояние, что 17.05.2026 привело к ложной тревоге.
+# ============================================================================
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_campaigns_paginates_through_all_pages():
+    """Если в кабинете кампаний больше чем page_size, get_campaigns должен
+    собрать все, циклом по offset."""
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    # VK при limit=50 на 80 кампаний отдаст 50 → 30 → пусто (или меньше limit)
+    page_responses = [
+        httpx.Response(
+            200,
+            json={
+                "count": 80,
+                "offset": 0,
+                "items": [{"id": i, "status": "active"} for i in range(50)],
+            },
+        ),
+        httpx.Response(
+            200,
+            json={
+                "count": 80,
+                "offset": 50,
+                "items": [{"id": i, "status": "active"} for i in range(50, 80)],
+            },
+        ),
+    ]
+    route = respx.get(f"{VK_API_BASE}/ad_plans.json").mock(side_effect=page_responses)
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    campaigns = await client.get_campaigns()
+
+    assert len(campaigns) == 80, "Должны вернуться все 80, а не только первая страница"
+    # Цикл вышел после второй страницы (меньше page_size — значит конец)
+    assert route.call_count == 2
+    # Вторая страница ушла с offset=50
+    second_request = route.calls[1].request
+    assert "offset=50" in str(second_request.url)
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_campaigns_single_page_no_extra_call():
+    """Если первая страница не заполнена до конца (items < page_size), второго
+    запроса быть не должно — экономим вызовы и токены."""
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    route = respx.get(f"{VK_API_BASE}/ad_plans.json").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "count": 3,
+                "offset": 0,
+                "items": [
+                    {"id": 1, "status": "active"},
+                    {"id": 2, "status": "blocked"},
+                    {"id": 3, "status": "deleted"},
+                ],
+            },
+        )
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    campaigns = await client.get_campaigns()
+
+    assert len(campaigns) == 3
+    assert route.call_count == 1, "Дёргать VK второй раз бессмысленно"
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_campaigns_status_filter_uses_underscore_prefix():
+    """По доке VK Ads (https://ads.vk.com/doc/api/resource/AdPlans) фильтр
+    статуса называется `_status` (с подчёркиванием), не `status`. До фикса
+    параметр уходил как `status=` и VK его молча игнорировал."""
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    route = respx.get(f"{VK_API_BASE}/ad_plans.json").mock(
+        return_value=httpx.Response(200, json={"count": 0, "offset": 0, "items": []})
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    await client.get_campaigns(status="active")
+
+    assert route.call_count == 1
+    url_str = str(route.calls[0].request.url)
+    assert "_status=active" in url_str
+    # И ни в коем случае не голый `status=` (это был баг)
+    assert "&status=" not in url_str and "?status=" not in url_str
+
+
+@pytest.mark.asyncio
+@respx.mock
+async def test_get_campaigns_paginate_false_returns_only_first_page():
+    """Для редких случаев когда нужна одна страница — параметр paginate=False."""
+    respx.post(OAUTH_URL).mock(
+        return_value=httpx.Response(
+            200, json={"access_token": "tk", "expires_in": 86400}
+        )
+    )
+    route = respx.get(f"{VK_API_BASE}/ad_plans.json").mock(
+        return_value=httpx.Response(
+            200,
+            json={
+                "count": 100,
+                "offset": 0,
+                "items": [{"id": i, "status": "active"} for i in range(50)],
+            },
+        )
+    )
+
+    client = VKAdsClient(
+        authenticator=VKAdsAuthenticator(client_id="c", client_secret="s")
+    )
+    campaigns = await client.get_campaigns(paginate=False)
+
+    assert len(campaigns) == 50
+    assert route.call_count == 1, "paginate=False — ровно один запрос"

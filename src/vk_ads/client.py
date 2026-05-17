@@ -360,32 +360,74 @@ class VKAdsClient:
         return None
 
     async def get_campaigns(
-        self, limit: int = 50, offset: int = 0, status: str | None = None
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        status: str | None = None,
+        paginate: bool = True,
+        max_pages: int = 50,
     ) -> list[dict]:
         """Список рекламных кампаний (ad_plans).
 
         GET /ad_plans.json — для нового кабинета VK Ads.
         Старый легаси-эндпоинт /campaigns.json не работает в новом кабинете.
 
+        Урок 17.05.2026: раньше метод возвращал только первые `limit` штук
+        и /status показывал срез, а не реальное состояние кабинета. Если
+        в кабинете 30+ кампаний (с учётом всех старых deleted/blocked/
+        тестовых), /status видел только первые 20 и врал. Поэтому теперь
+        по умолчанию пагинируем циклом по offset до конца, ограничив
+        max_pages чтобы не зациклиться при странностях со стороны VK.
+
         Args:
-            limit: сколько вернуть (макс 50 за раз)
-            offset: смещение для пагинации
-            status: фильтр по статусу ('active', 'blocked', 'deleted')
+            limit: размер страницы (макс 50 за один запрос, ограничение VK).
+            offset: стартовое смещение.
+            status: фильтр по статусу ('active', 'blocked', 'deleted').
+                По доке VK параметр называется `_status` (с подчёркиванием),
+                см. https://ads.vk.com/doc/api/resource/AdPlans.
+            paginate: если True (default), цикл по страницам до конца.
+                False оставлено для редких случаев когда нужна одна страница.
+            max_pages: предохранитель от бесконечного цикла (по умолчанию
+                50 × 50 = 2500 кампаний; больше — VK API скорее всего сам
+                сломается раньше).
         """
-        params: dict[str, Any] = {
-            "limit": min(limit, 50),
-            "offset": offset,
+        page_size = min(limit, 50)
+        base_params: dict[str, Any] = {
+            "limit": page_size,
             "fields": "id,name,status,objective,date_start,date_end,budget_limit_day,budget_limit",
         }
+        # По доке VK фильтр статуса называется `_status` (с подчёркиванием).
+        # До 17.05.2026 у нас тут было `status=` — VK его молча игнорировал
+        # и возвращал все кампании, что маскировало баг при фильтрации.
         if status:
-            params["status"] = status
+            base_params["_status"] = status
 
-        result = await self._request("GET", "/ad_plans.json", params=params)
-        if isinstance(result, dict):
-            return result.get("items", [])
-        if isinstance(result, list):
-            return result
-        return []
+        collected: list[dict] = []
+        current_offset = offset
+        for _ in range(max_pages):
+            params = {**base_params, "offset": current_offset}
+            result = await self._request("GET", "/ad_plans.json", params=params)
+
+            if isinstance(result, list):
+                # Legacy-форма ответа без count/items — не пагинируем дальше.
+                return result
+
+            if not isinstance(result, dict):
+                break
+
+            page_items = result.get("items", []) or []
+            collected.extend(page_items)
+
+            # Условия выхода из цикла:
+            #  - запросили одну страницу (paginate=False)
+            #  - VK вернул меньше чем page_size → дошли до конца
+            #  - VK вернул нулевую страницу → защита от пустых ответов
+            if not paginate or len(page_items) < page_size or not page_items:
+                break
+
+            current_offset += page_size
+
+        return collected
 
     async def get_ad_plan_raw(self, ad_plan_id: int | str) -> dict | None:
         """Полная сырая структура одной кампании (ad_plan) с максимумом полей.
