@@ -125,27 +125,24 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
     name_by_id = {int(c["id"]): c.get("name", "?") for c in active_campaigns}
     alerts: list[tuple[int, str, str]] = []  # (id, name, reason)
 
+    # Используем общий хелпер aggregate_stats_item — единственный источник
+    # правды о формате ответа VK Ads Statistics API. Раньше тут была
+    # дубликатная (и поломанная) копия парсера: искала shows/clicks/spent
+    # на уровне `total`, а реально они в `rows[].base`. Сторож из-за
+    # этого не выявлял аномалии, так как у всех stats.impressions было 0.
+    from src.vk_ads.models import aggregate_stats_item
+
     items = stats_response.get("items", []) if isinstance(stats_response, dict) else []
     for item in items:
-        cid = int(item.get("id", 0))
-        if not cid:
+        stats = aggregate_stats_item(item)
+        if stats is None:
             continue
-        # Метрики могут быть в total или в rows[0] в зависимости от API версии
-        total = item.get("total") or {}
-        if not total and isinstance(item.get("rows"), list) and item["rows"]:
-            total = item["rows"][0]
-
-        stats = CampaignStats(
-            campaign_id=cid,
-            impressions=int(total.get("shows", 0) or 0),
-            clicks=int(total.get("clicks", 0) or 0),
-            spent_rub=float(total.get("spent", 0) or 0),
-            leads=int(total.get("goals", 0) or 0),
-        )
 
         decision = check_campaign_anomaly(stats)
         if decision.action == "alert":
-            alerts.append((cid, name_by_id.get(cid, "?"), decision.reason))
+            alerts.append(
+                (stats.campaign_id, name_by_id.get(stats.campaign_id, "?"), decision.reason)
+            )
 
     # Сохраняем список «жёлтых» для /kill_bad
     from src.scheduler import bad_campaigns_state

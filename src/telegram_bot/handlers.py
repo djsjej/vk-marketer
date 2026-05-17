@@ -2919,22 +2919,20 @@ async def watchdog_command(
     ok_campaigns: list[tuple[int, str, CampaignStats]] = []
     no_data_campaigns: list[tuple[int, str]] = []
 
+    # ВАЖНО: используем общий хелпер из vk_ads.models, чтобы парсинг
+    # ответа VK Ads Statistics API жил в одном месте. До 17.05.2026 у нас
+    # тут был свой парсер который искал shows/clicks/spent на верхнем
+    # уровне `total`, а реально они лежат в `rows[].base`. Из-за этого
+    # сторож писал «🕐 Ещё нет данных» по всем кампаниям несмотря на то
+    # что они показывались. Источник правды — docs/VK_STATISTICS_API.md.
+    from src.vk_ads.models import aggregate_stats_item
+
     items = stats_response.get("items", []) if isinstance(stats_response, dict) else []
-    stats_by_id = {}
+    stats_by_id: dict[int, CampaignStats] = {}
     for item in items:
-        cid = int(item.get("id", 0))
-        if not cid:
-            continue
-        total = item.get("total") or {}
-        if not total and isinstance(item.get("rows"), list) and item["rows"]:
-            total = item["rows"][0]
-        stats_by_id[cid] = CampaignStats(
-            campaign_id=cid,
-            impressions=int(total.get("shows", 0) or 0),
-            clicks=int(total.get("clicks", 0) or 0),
-            spent_rub=float(total.get("spent", 0) or 0),
-            leads=int(total.get("goals", 0) or 0),
-        )
+        stats = aggregate_stats_item(item)
+        if stats is not None:
+            stats_by_id[stats.campaign_id] = stats
 
     for cid in campaign_ids:
         name = name_by_id.get(cid, "?")
