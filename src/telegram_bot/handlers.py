@@ -456,6 +456,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Phase 5.9: smoke test проверяется вторым.
     Обычный фото-flow — третьим (когда нет специальных режимов).
     """
+    # Phase 5.17: launch_20 режим (20 кампаний за 4 фото)
+    if await handle_launch_20_photo(update, context):
+        return
+
     # Phase 5.11: batch режим (12 кампаний за 3 фото)
     if await handle_batch_photo(update, context):
         return
@@ -2702,6 +2706,233 @@ async def handle_batch_photo(
 
     logger.info(
         f"launch_batch: создано {len(results)}/12 кампаний, "
+        f"ids={[r.ad_plan_id for r in results]}"
+    )
+    return True
+
+
+# ============================================================
+# Phase 5.17 (17.05.2026) — команда /launch_20
+# ============================================================
+#
+# Масштабирующий запуск после успеха «Молитвы за семью» (CPL 78₽).
+# - 4 женских возраста (36-40, 41-46, 47-52, 53-58) — шаг 5 лет
+# - 5 общих текстов на каждый возраст (без триггеров боли/смерти)
+# - 4 фото (по одному на возраст)
+# - 20 кампаний × 500₽/день × 1 день = 10 000₽ на тест
+# - Заголовки не содержат названия группы (Vizit пересмотрел требование 17.05)
+
+LAUNCH_20_COPIES = [
+    {
+        "title": "Молитва за семью",
+        "text": "Сильная женщина держит семью. Молитвенная помощь — не лишняя. Напишите имена близких — добавим в общую молитву.",
+        "about": "Молитвенное сообщество. Молитва за семью.",
+    },
+    {
+        "title": "Молитва о вашем ребёнке",
+        "text": "Когда тревожно за ребёнка, нет ничего сильнее молитвы. Напишите имя — добавим в молитвенное правило.",
+        "about": "Молитвенное сообщество. Молитва о детях.",
+    },
+    {
+        "title": "Молитва матери самая сильная",
+        "text": "Материнская молитва со дна моря достанет. Напишите имя того, о ком душа болит — помолимся вместе.",
+        "about": "Молитвенное сообщество. Сила материнской молитвы.",
+    },
+    {
+        "title": "Помолитесь о ваших близких",
+        "text": "Родители, дети, муж — те кого любим больше всех. Напишите имена близких — добавим в общую молитву.",
+        "about": "Молитвенное сообщество. Молитва о близких.",
+    },
+    {
+        "title": "Молитва о вашем доме и семье",
+        "text": "Дом крепок молитвой. О мире в семье, о здравии всех живущих. Напишите имена — помолимся.",
+        "about": "Молитвенное сообщество. Молитва о доме.",
+    },
+]
+
+# 4 женских возраста, шаг 5 лет — точно измерим где лучше отзываются
+LAUNCH_20_AGE_ORDER = [(36, 40), (41, 46), (47, 52), (53, 58)]
+
+# Подсказки какое фото лучше под каждый возраст (выбраны из 10 присланных
+# 17.05.2026, отметили ⭐⭐⭐ как топ для родительской темы)
+LAUNCH_20_PHOTO_HINTS = {
+    (36, 40): "молодые матери — IMG_5699 или IMG_5716 (мать с младенцем у иконы)",
+    (41, 46): "победный сегмент — IMG_5709 (мать с младенцем у Богородицы с младенцем, ⭐⭐⭐)",
+    (47, 52): "зрелые — IMG_5704 (Владимирская икона, ⭐⭐⭐) или IMG_5711",
+    (53, 58): "бабушки — IMG_5705 (Утоли моя печали) или IMG_5710 (благословение ребёнка)",
+}
+
+
+async def launch_20_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Запускает 20 кампаний (4 возраста × 5 текстов) для масштабирования
+    после «Молитвы за семью».
+
+    Параметры (одобрены Vizit'ом 17.05.2026):
+    - 4 женских возраста: 36-40, 41-46, 47-52, 53-58
+    - 5 текстов на возраст (одни и те же — варьируется возраст, не текст)
+    - 4 фото — Vizit присылает последовательно, одно на возраст
+    - 500₽/день × 1 день = 500₽ на кампанию
+    - Total: 20 × 500 = 10 000₽
+    """
+    from src.config import settings
+    segments = settings.vk_audience_segment_ids_parsed
+    if not segments:
+        await update.message.reply_text(
+            "❌ В Railway env не задан `VK_AUDIENCE_SEGMENT_IDS`.",
+            parse_mode="Markdown",
+        )
+        return
+
+    # Включаем launch_20 режим — handle_launch_20_photo подхватит следующие фото
+    context.user_data["launch_20_mode"] = True
+    context.user_data["launch_20_photos"] = {}
+    context.user_data["launch_20_current_age_idx"] = 0
+
+    first_age = LAUNCH_20_AGE_ORDER[0]
+    first_hint = LAUNCH_20_PHOTO_HINTS[first_age]
+
+    await update.message.reply_text(
+        f"🚀 *Масштабирующий запуск 20 кампаний*\n\n"
+        f"Параметры:\n"
+        f"— **4 возраста (Ж):** 36-40, 41-46, 47-52, 53-58\n"
+        f"— **5 текстов** на каждый возраст (общие)\n"
+        f"— **20 кампаний** = 4 × 5\n"
+        f"— **Бюджет:** 500₽/день × 1 день = 500₽ на кампанию\n"
+        f"— **Всего:** 10 000₽ за день\n"
+        f"— **Сегмент:** {segments[0]}\n"
+        f"— **Цель:** «Написать сообщение» (package 3127)\n\n"
+        f"*Принимаю 4 фото последовательно* — по одному на каждый возраст.\n\n"
+        f"📷 *Шаг 1/4:* пришли фото для возраста *{first_age[0]}-{first_age[1]}*\n"
+        f"_{first_hint}_\n\n"
+        f"Чтобы отменить — напиши «отмена».",
+        parse_mode="Markdown",
+    )
+
+
+async def handle_launch_20_photo(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    """Обработчик фото в режиме launch_20. Принимает 4 фото последовательно,
+    после 4-го запускает создание 20 кампаний.
+
+    Returns:
+        True если обработали (handle_photo не должен дальше обрабатывать),
+        False если не в режиме launch_20.
+    """
+    if not context.user_data.get("launch_20_mode"):
+        return False
+
+    current_idx = context.user_data.get("launch_20_current_age_idx", 0)
+    if current_idx >= len(LAUNCH_20_AGE_ORDER):
+        context.user_data["launch_20_mode"] = False
+        return True
+
+    current_age = LAUNCH_20_AGE_ORDER[current_idx]
+
+    # Скачиваем фото
+    photo = update.message.photo[-1]
+    try:
+        tg_file = await photo.get_file()
+        image_bytes = bytes(await tg_file.download_as_bytearray())
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Не смог скачать фото: `{type(e).__name__}: {e}`. "
+            f"Перезапусти `/launch_20`.",
+            parse_mode="Markdown",
+        )
+        context.user_data["launch_20_mode"] = False
+        return True
+
+    # Сохраняем фото для текущего возраста
+    context.user_data["launch_20_photos"][current_age] = image_bytes
+    next_idx = current_idx + 1
+    context.user_data["launch_20_current_age_idx"] = next_idx
+
+    # Если ещё есть возрасты — ждём следующего фото
+    if next_idx < len(LAUNCH_20_AGE_ORDER):
+        next_age = LAUNCH_20_AGE_ORDER[next_idx]
+        next_hint = LAUNCH_20_PHOTO_HINTS[next_age]
+        await update.message.reply_text(
+            f"✅ Фото для {current_age[0]}-{current_age[1]} принято "
+            f"({len(image_bytes)} байт).\n\n"
+            f"📷 *Шаг {next_idx + 1}/4:* пришли фото для возраста "
+            f"*{next_age[0]}-{next_age[1]}*\n"
+            f"_{next_hint}_",
+            parse_mode="Markdown",
+        )
+        return True
+
+    # Все 4 фото собраны — запускаем создание
+    await update.message.reply_text(
+        f"✅ Все 4 фото собраны. Создаю 20 кампаний — это займёт минуту-две.\n"
+        f"Не отправляй ничего, пока я не отвечу с результатом.",
+        parse_mode="Markdown",
+    )
+
+    try:
+        from src.vk_ads.client import VKAdsClient
+
+        ads_client = VKAdsClient.from_settings()
+        if ads_client is None:
+            await update.message.reply_text(
+                "❌ VK Ads клиент не настроен."
+            )
+            context.user_data["launch_20_mode"] = False
+            return True
+
+        ad_creator = AdCreator(ads_client)
+
+        # Готовим copies_by_age — одни и те же 5 текстов для всех 4 возрастов
+        ad_copies = [
+            AdCopy(
+                title=d["title"],
+                text=d["text"],
+                about=d["about"],
+                cta="write",
+            )
+            for d in LAUNCH_20_COPIES
+        ]
+        copies_by_age = {age: ad_copies for age in LAUNCH_20_AGE_ORDER}
+
+        results = await ad_creator.create_batch_campaigns(
+            images_by_age=context.user_data["launch_20_photos"],
+            copies_by_age=copies_by_age,
+            community_url="https://vk.com/pomolimsy",
+            daily_budget_rub_per_campaign=500,
+            days_duration=1,
+        )
+    except Exception as e:
+        logger.exception("launch_20 campaigns creation failed")
+        await update.message.reply_text(
+            f"❌ Не смог создать 20 кампаний: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        context.user_data["launch_20_mode"] = False
+        return True
+
+    # Финальный отчёт — компактный
+    ids_summary = ", ".join(f"`{r.ad_plan_id}`" for r in results[:20])
+    await update.message.reply_text(
+        f"✅ *20 кампаний запущены!*\n\n"
+        f"Создано: *{len(results)} из 20 кампаний*\n"
+        f"Бюджет: 500₽/день × 1 день на каждую = ~{len(results) * 500}₽ total\n\n"
+        f"*ID кампаний:* {ids_summary}\n\n"
+        f"*Что дальше:*\n"
+        f"1. Все кампании на модерации (обычно 1-4 часа)\n"
+        f"2. К утру `/watchdog` покажет CPL по каждой\n"
+        f"3. Слабые `/pause`, на сильные удваиваем бюджет\n\n"
+        f"_В кабинете VK Ads → Кампании → фильтр по имени `batch` ._",
+        parse_mode="Markdown",
+    )
+
+    context.user_data["launch_20_mode"] = False
+    context.user_data.pop("launch_20_photos", None)
+    context.user_data.pop("launch_20_current_age_idx", None)
+
+    logger.info(
+        f"launch_20: создано {len(results)}/20 кампаний, "
         f"ids={[r.ad_plan_id for r in results]}"
     )
     return True

@@ -24,6 +24,7 @@ from src.telegram_bot.handlers import (
     kill_bad_command,
     launch_batch_command,
     launch_test_command,
+    launch_20_command,
     menu_callback,
     menu_command,
     on_callback,
@@ -107,6 +108,9 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("launch_batch", launch_batch_command, filters=owner_filter)
+    )
+    application.add_handler(
+        CommandHandler("launch_20", launch_20_command, filters=owner_filter)
     )
     application.add_handler(
         CommandHandler("pause", pause_command, filters=owner_filter)
