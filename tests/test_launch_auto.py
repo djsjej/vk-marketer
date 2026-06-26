@@ -23,28 +23,28 @@ AGES_4 = [(36, 40), (41, 46), (47, 52), (53, 58)]
 # ---- ядро: plan_test_grid ----
 
 
-def test_grid_full_at_6000_gives_20():
-    """При 300₽/тест: 6000₽ / 300 = 20 кампаний / 4 возраста = 5 текстов → 20."""
-    plan = plan_test_grid(max_daily_spend_rub=6000, ages=AGES_4)
-    assert plan.per_campaign_rub == 300
-    assert plan.variants == 5
-    assert plan.total_campaigns == 20
-    assert plan.total_cost_rub == 6000
-    assert plan.full_age_coverage is True
-
-
-def test_grid_scales_down_with_lower_cap():
-    """2400₽ → 8 кампаний / 4 = 2 текста → 8 тестов = 2400₽."""
+def test_grid_two_images_at_2400():
+    """2400₽ → 8 кампаний: 2 картинки × 4 возраста × 1 текст = 8."""
     plan = plan_test_grid(max_daily_spend_rub=2400, ages=AGES_4)
-    assert plan.variants == 2
+    assert plan.per_campaign_rub == 300
+    assert plan.images == 2
+    assert plan.variants == 1
     assert plan.total_campaigns == 8
     assert plan.total_cost_rub == 2400
     assert plan.full_age_coverage is True
 
 
-def test_grid_one_variant_per_age_at_1200():
-    """1200₽ → 4 кампании / 4 = 1 текст → 4 теста (по одному на возраст)."""
+def test_grid_four_images_at_4800():
+    """4800₽ → 16 кампаний: 4 картинки × 4 возраста × 1 текст."""
+    plan = plan_test_grid(max_daily_spend_rub=4800, ages=AGES_4)
+    assert plan.images == 4
+    assert plan.total_campaigns == 16
+
+
+def test_grid_one_image_at_1200():
+    """1200₽ → 4 кампании: 1 картинка × 4 возраста × 1 текст."""
     plan = plan_test_grid(max_daily_spend_rub=1200, ages=AGES_4)
+    assert plan.images == 1
     assert plan.variants == 1
     assert plan.total_campaigns == 4
     assert plan.full_age_coverage is True
@@ -54,26 +54,25 @@ def test_grid_partial_age_coverage_when_budget_too_small():
     """1000₽ → 3 кампании (1000//300), на 4 возраста не хватает → 3, флаг False."""
     plan = plan_test_grid(max_daily_spend_rub=1000, ages=AGES_4)
     assert plan.variants == 1
+    assert plan.images == 1
     assert plan.total_campaigns == 3
     assert plan.full_age_coverage is False
     assert "из 4" in plan.note
 
 
-def test_grid_caps_variants_at_max():
-    """Большой лимит не делает >5 текстов на возраст (max_variants)."""
+def test_grid_caps_images_at_max():
+    """Большой лимит не делает >4 картинок (max_images)."""
     plan = plan_test_grid(max_daily_spend_rub=100000, ages=AGES_4)
-    assert plan.variants == 5
-    assert plan.total_campaigns == 20
+    assert plan.images == 4
 
 
-def test_grid_respects_custom_min_budget_and_days():
+def test_grid_respects_custom_min_budget():
     plan = plan_test_grid(
-        max_daily_spend_rub=2000, ages=AGES_4, per_campaign_rub=200, days=2
+        max_daily_spend_rub=2400, ages=AGES_4, per_campaign_rub=200
     )
-    # 2000/200 = 10 кампаний / 4 = 2 текста → 8 тестов
+    # 2400/200 = 12 кампаний / 4 = 3 картинки × 4 × 1 = 12
     assert plan.per_campaign_rub == 200
-    assert plan.total_campaigns == 8
-    assert plan.total_cost_rub == 8 * 200 * 2
+    assert plan.total_campaigns == 12
 
 
 def test_grid_raises_when_cap_below_one_test():
@@ -143,15 +142,15 @@ async def test_launch_auto_with_theme_sets_mode_and_plan():
         AsyncMock(return_value=fake_by_age),
     ):
         s.vk_audience_segment_ids_parsed = [80507749]
-        s.max_daily_spend_rub = 6000  # при 300₽/тест даёт полные 20 тестов
+        s.max_daily_spend_rub = 6000  # 4 картинки × 4 возраста × 1 текст = 16
         await launch_auto_command(update, context)
 
     assert context.user_data["launch_auto_mode"] is True
     plan = context.user_data["launch_auto_plan"]
     assert isinstance(plan, TestGridPlan)
-    assert plan.total_campaigns == 20
-    # В сообщении видно число тестов
-    assert "20" in update.message.reply_text.await_args.args[0]
+    assert plan.total_campaigns == 16
+    assert plan.images == 4
+    assert "16" in update.message.reply_text.await_args.args[0]
 
 
 # ---- обработчик фото launch_auto ----
@@ -172,7 +171,8 @@ async def test_handle_launch_auto_photo_launches_grid_at_min_budget():
     from src.telegram_bot.handlers import handle_launch_auto_photo
     from src.services.ad_creator import AdCopy
 
-    plan = plan_test_grid(max_daily_spend_rub=2400, ages=AGES_4)  # 8 тестов, 300₽
+    plan = plan_test_grid(max_daily_spend_rub=1200, ages=AGES_4)  # 1 картинка, 4 теста
+    assert plan.images == 1
     copies = [AdCopy(title="t", text="x", about="a", cta="write")] * plan.variants
     copies_by_age = {age: copies for age in plan.ages}
 
@@ -207,12 +207,57 @@ async def test_handle_launch_auto_photo_launches_grid_at_min_budget():
     assert result is True
     fake_creator.create_batch_campaigns.assert_awaited_once()
     kwargs = fake_creator.create_batch_campaigns.await_args.kwargs
-    # Минимальный бюджет и 1 день
     assert kwargs["daily_budget_rub_per_campaign"] == MIN_TEST_BUDGET_RUB
     assert kwargs["days_duration"] == 1
-    # Сетка = все 4 возраста
     assert len(kwargs["images_by_age"]) == 4
-    # Режим сброшен
+    assert context.user_data["launch_auto_mode"] is False
+
+
+@pytest.mark.asyncio
+async def test_handle_launch_auto_photo_collects_multiple_creatives():
+    """2 картинки в плане → запуск только после 2-го фото, batch вызван 2 раза."""
+    from src.telegram_bot.handlers import handle_launch_auto_photo
+    from src.services.ad_creator import AdCopy
+
+    plan = plan_test_grid(max_daily_spend_rub=2400, ages=AGES_4)  # 2 картинки
+    assert plan.images == 2
+    copies_by_age = {age: [AdCopy(title="t", text="x", about="a", cta="write")] for age in plan.ages}
+
+    def _mk_update():
+        u = MagicMock()
+        u.message.reply_text = AsyncMock()
+        f = MagicMock()
+        f.download_as_bytearray = AsyncMock(return_value=bytearray(b"img"))
+        p = MagicMock()
+        p.get_file = AsyncMock(return_value=f)
+        u.message.photo = [p]
+        return u
+
+    context = MagicMock()
+    context.user_data = {
+        "launch_auto_mode": True,
+        "launch_auto_plan": plan,
+        "launch_auto_copies_by_age": copies_by_age,
+    }
+
+    fake_client = MagicMock()
+    fake_creator = MagicMock()
+    fake_creator.create_batch_campaigns = AsyncMock(return_value=[MagicMock(ad_plan_id=1)])
+
+    with patch(
+        "src.vk_ads.client.VKAdsClient.from_settings", return_value=fake_client
+    ), patch("src.telegram_bot.handlers.AdCreator", return_value=fake_creator), patch(
+        "src.config.settings"
+    ) as s:
+        s.vk_community_url = "https://vk.com/pomolimsy"
+        # 1-е фото — копим, не запускаем
+        await handle_launch_auto_photo(_mk_update(), context)
+        assert fake_creator.create_batch_campaigns.await_count == 0
+        assert context.user_data["launch_auto_mode"] is True
+        # 2-е фото — запуск, batch вызван по разу на каждую картинку
+        await handle_launch_auto_photo(_mk_update(), context)
+
+    assert fake_creator.create_batch_campaigns.await_count == 2
     assert context.user_data["launch_auto_mode"] is False
 
 
