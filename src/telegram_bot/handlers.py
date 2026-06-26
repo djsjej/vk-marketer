@@ -1818,12 +1818,14 @@ async def _boba_setup_launch(context: ContextTypes.DEFAULT_TYPE, theme: str) -> 
     context.user_data["launch_auto_theme"] = theme
 
     coverage = "" if plan.full_age_coverage else f" ⚠️ {plan.note}"
+    # Текст-итог идёт Бобе как результат инструмента; он перескажет Vizit'у
+    # своим голосом. Формулируем как «всё посчитано, нужен лишь фото».
     return (
-        f"Готово к запуску по теме «{theme}»: {plan.total_campaigns} тестов "
+        f"Посчитал сетку по теме «{theme}»: {plan.total_campaigns} тестов "
         f"({len(plan.ages)} возрастов × {plan.variants} текстов) по "
         f"{plan.per_campaign_rub}₽ = {plan.total_cost_rub}₽ под дневным "
-        f"лимитом.{coverage} Тексты написал. Передай Vizit'у: пусть пришлёт "
-        f"ОДНО фото — и я всё соберу и запущу."
+        f"лимитом.{coverage} Тексты готовы. Осталось одно: попроси у Vizit'а "
+        f"ОДНО фото — как пришлёт, кампании создадутся."
     )
 
 

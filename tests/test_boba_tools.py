@@ -169,6 +169,7 @@ def test_boba_tools_schema_has_all_tools():
         "append_knowledge",
         "recommend_images",
         "launch_ads",
+        "stop_ads",
     }
     assert tool_names == expected
 
@@ -465,3 +466,68 @@ async def test_fully_empty_assistant_turn_not_added():
     )
     # И пользователю отдаём осмысленный фолбэк, а не пустую строку
     assert response.text.strip() != ""
+
+
+# ============================================================
+# Tool 8: stop_ads (рука Тимура — выключение)
+# ============================================================
+
+
+def test_stop_ads_registered():
+    from src.agents.boba_tools import _TOOL_DISPATCHER
+
+    assert "stop_ads" in {t["name"] for t in BOBA_TOOLS_SCHEMA}
+    assert "stop_ads" in _TOOL_DISPATCHER
+
+
+@pytest.mark.asyncio
+async def test_stop_ads_all_pauses_every_active():
+    from src.agents.boba_tools import stop_ads
+
+    client = MagicMock()
+    client.get_active_ad_plans = AsyncMock(return_value=[{"id": 1}, {"id": 2}, {"id": 3}])
+    client.pause_campaign = AsyncMock(return_value={"status": "blocked"})
+
+    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client), patch(
+        "src.db.repository.log_action", AsyncMock()
+    ):
+        result = await stop_ads("all")
+
+    assert client.pause_campaign.await_count == 3
+    assert "3" in result
+
+
+@pytest.mark.asyncio
+async def test_stop_ads_single_by_id():
+    from src.agents.boba_tools import stop_ads
+
+    client = MagicMock()
+    client.pause_campaign = AsyncMock(return_value={"status": "blocked"})
+
+    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client), patch(
+        "src.db.repository.log_action", AsyncMock()
+    ):
+        result = await stop_ads("12345")
+
+    client.pause_campaign.assert_awaited_once_with(12345)
+    assert "12345" in result
+
+
+@pytest.mark.asyncio
+async def test_stop_ads_no_active():
+    from src.agents.boba_tools import stop_ads
+
+    client = MagicMock()
+    client.get_active_ad_plans = AsyncMock(return_value=[])
+    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client):
+        result = await stop_ads("all")
+    assert "нет" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_stop_ads_no_client():
+    from src.agents.boba_tools import stop_ads
+
+    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=None):
+        result = await stop_ads("all")
+    assert "не настроен" in result.lower()
