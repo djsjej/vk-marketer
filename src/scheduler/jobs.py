@@ -181,10 +181,118 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
 
 
 async def check_daily_budget(bot: Bot) -> None:
-    """Каждые 10 минут — проверка дневного расхода. При превышении — стоп всё."""
-    logger.debug("Проверка дневного бюджета")
-    # TODO:
-    # 1. Получить суммарный расход за сегодня
-    # 2. Если >= settings.max_daily_spend_rub → остановить ВСЕ активные кампании
-    # 3. Отправить алерт владельцу
-    pass
+    """Дневной рубильник бюджета — приоритет №1 (Конституция).
+
+    Каждые 10 минут считает фактический расход за сегодня по ВСЕМ кампаниям
+    кабинета (а не только активным — кампания могла открутить деньги и быть
+    выключенной раньше в течение дня) и сверяет с `MAX_DAILY_SPEND` через
+    `check_daily_spend()`. При достижении лимита — **выключает все активные
+    кампании** и шлёт алерт владельцу.
+
+    Это единственное место где Сторож действует автоматически, без human
+    gate: дневной hard-stop — детерминированный предохранитель из Конституции
+    («приоритет №1»), а не оптимизация по CPL (та остаётся за человеком).
+
+    Защита от спама: если лимит уже пробит, но активных кампаний не осталось
+    (мы их выключили на прошлом проходе), молча выходим — повторный алерт
+    каждые 10 минут не нужен.
+    """
+    from datetime import datetime
+
+    from src.scheduler.safety import check_daily_spend
+    from src.vk_ads.client import VKAdsClient
+    from src.vk_ads.models import aggregate_stats_item
+
+    logger.info("[Бюджет] Проверка дневного расхода")
+
+    client = VKAdsClient.from_settings()
+    if client is None:
+        logger.warning("[Бюджет] VKAdsClient не настроен, пропускаю")
+        return
+
+    # Список всех кампаний (любой статус) — для консервативного подсчёта
+    # суммарного расхода за день.
+    try:
+        all_campaigns = await client.get_campaigns()
+    except Exception as e:
+        logger.exception(f"[Бюджет] Не смог получить список кампаний: {e}")
+        return
+
+    campaign_ids = [int(c["id"]) for c in all_campaigns if c.get("id")]
+    if not campaign_ids:
+        logger.info("[Бюджет] Кампаний в кабинете нет")
+        return
+
+    today = datetime.now().strftime("%Y-%m-%d")
+    try:
+        stats_response = await client.get_campaign_stats(
+            campaign_ids=campaign_ids,
+            date_from=today,
+            date_to=today,
+        )
+    except Exception as e:
+        logger.exception(f"[Бюджет] Не смог получить метрики расхода: {e}")
+        return
+
+    items = stats_response.get("items", []) if isinstance(stats_response, dict) else []
+    total_spent = 0.0
+    for item in items:
+        stats = aggregate_stats_item(item)
+        if stats is not None:
+            total_spent += stats.spent_rub
+
+    decision = check_daily_spend(total_spent)
+    logger.info(
+        f"[Бюджет] Расход за {today}: {total_spent:.0f}₽ "
+        f"из лимита {settings.max_daily_spend_rub}₽ → {decision.action}"
+    )
+
+    if decision.action != "stop_all":
+        return
+
+    # Лимит пробит. Выключаем все активные кампании.
+    try:
+        active_campaigns = await client.get_active_ad_plans()
+    except Exception as e:
+        logger.exception(f"[Бюджет] Лимит пробит, но не смог получить активные: {e}")
+        active_campaigns = []
+
+    if not active_campaigns:
+        # Уже всё выключено на прошлом проходе — не спамим повторным алертом.
+        logger.info("[Бюджет] Лимит пробит, но активных кампаний нет — выходим тихо")
+        return
+
+    paused: list[str] = []
+    failed: list[str] = []
+    for camp in active_campaigns:
+        cid = int(camp["id"])
+        name = camp.get("name", "?")
+        try:
+            await client.pause_campaign(cid)
+            paused.append(f"`{name}` (`{cid}`)")
+            logger.info(f"[Бюджет] Авто-стоп кампании {cid} ({name})")
+        except Exception as e:
+            failed.append(f"`{name}` (`{cid}`)")
+            logger.error(f"[Бюджет] Не смог выключить {cid}: {e}")
+
+    lines = [
+        f"🛑 *Дневной лимит бюджета достигнут*\n",
+        decision.reason,
+        f"\n\nВыключено кампаний: *{len(paused)}*",
+    ]
+    if paused:
+        lines.append("\n" + "\n".join(paused))
+    if failed:
+        lines.append(
+            f"\n\n⚠️ Не удалось выключить *{len(failed)}* "
+            f"(проверь вручную через `/status`):\n" + "\n".join(failed)
+        )
+
+    try:
+        await bot.send_message(
+            chat_id=settings.telegram_owner_id,
+            text="".join(lines),
+            parse_mode="Markdown",
+        )
+    except Exception as e:
+        logger.error(f"[Бюджет] Не смог отправить алерт о стопе: {e}")
