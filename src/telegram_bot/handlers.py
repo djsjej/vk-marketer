@@ -1809,11 +1809,19 @@ async def _boba_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, te
         )
     except Exception as e:
         logger.exception("Boba chat failed")
+        # Показываем РЕАЛЬНУЮ причину (не только класс) — без этого нельзя
+        # диагностировать удалённо. Шлём без Markdown, чтобы спецсимволы из
+        # текста ошибки не сломали разметку Telegram.
+        detail = str(e)[:350]
         await update.message.reply_text(
-            f"❌ Боба не смог ответить: `{type(e).__name__}`. "
-            f"Попробуй ещё раз или выйди через «выйти».",
-            parse_mode="Markdown",
+            f"❌ Боба не смог ответить ({type(e).__name__}).\n\n"
+            f"Причина: {detail}\n\n"
+            f"Попробуй ещё раз или выйди через «выйти». "
+            f"Если повторяется — перешли это сообщение разработчику.",
         )
+        # Подстраховка: возможно история повредилась — сбрасываем её, чтобы
+        # следующий заход начался с чистого листа, а не падал снова.
+        context.user_data["boba_history"] = []
         return
 
     # Сохраняем обновлённую историю для следующего turn
