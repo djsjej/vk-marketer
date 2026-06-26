@@ -585,6 +585,38 @@ async def stop_ads(target: str) -> str:
 
 
 # ============================================================
+# Tool 9: review_results (рука Алины — итоги и следующий раунд)
+# ============================================================
+
+REVIEW_RESULTS_SCHEMA = {
+    "name": "review_results",
+    "description": (
+        "Подводит итоги накопленного опыта рукой аналитика Алины: сколько "
+        "рабочих связок (победителей) и провалов в базе знаний, какие "
+        "лучшие по CPL, и что делать в следующем раунде. Используй когда "
+        "Vizit спрашивает 'что зашло', 'итоги', 'какие победители', "
+        "'что запускать дальше', или планируешь новый раунд тестов."
+    ),
+    "input_schema": {"type": "object", "properties": {}, "required": []},
+}
+
+
+async def review_results() -> str:
+    """Итоги раунда (рука Алины) — читает базу знаний."""
+    try:
+        from src.knowledge.round_analyzer import summarize_knowledge
+
+        s = summarize_knowledge()
+        return (
+            f"📊 Алина по итогам: победителей {len(s['winners'])}, "
+            f"провалов {len(s['failures'])}.\n{s['recommendation']}"
+        )
+    except Exception as e:
+        logger.exception("review_results failed")
+        return f"❌ Не смог подвести итоги: {type(e).__name__}: {e}"
+
+
+# ============================================================
 # Регистрация всех tools для передачи в Anthropic API
 # ============================================================
 
@@ -597,6 +629,7 @@ BOBA_TOOLS_SCHEMA: list[dict] = [
     RECOMMEND_IMAGES_SCHEMA,
     LAUNCH_ADS_SCHEMA,
     STOP_ADS_SCHEMA,
+    REVIEW_RESULTS_SCHEMA,
 ]
 """Список tool definitions для передачи в поле tools запроса к Anthropic API."""
 
@@ -610,6 +643,7 @@ _TOOL_DISPATCHER = {
     "append_knowledge": append_knowledge,
     "recommend_images": recommend_images,
     "stop_ads": stop_ads,
+    "review_results": review_results,
 }
 
 
