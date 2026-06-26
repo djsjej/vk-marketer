@@ -17,6 +17,11 @@ from telegram import (
 )
 from telegram.ext import ContextTypes
 
+from src.claude_brain.campaign_planner import (
+    CampaignPlanner,
+    PlannerError,
+    format_brief_message,
+)
 from src.claude_brain.copywriter import (
     ClaudeCopywriter,
     CopywriterError,
@@ -28,6 +33,7 @@ from src.services.ad_creator import (
     AdCopy,
     AdCreator,
     AdCreatorError,
+    plan_test_grid,
 )
 from src.vk_ads.auth import VKAdsAuthError
 from src.vk_ads.client import VKAdsAPIError, VKAdsClient
@@ -97,6 +103,43 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         parse_mode="Markdown",
         reply_markup=markup,
     )
+
+
+async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """«Новая реклама» (Шаг 1 продукта): тема → какие картинки нужны.
+
+    Vizit пишет `/plan <тема>` (например `/plan поминовение на Радоницу`).
+    Бот разбирает тему и отвечает брифом: 3-4 идеи картинок что прислать +
+    чего избегать. Денег не тратит — это подготовка перед запуском.
+    """
+    theme = " ".join(context.args).strip() if context.args else ""
+    if not theme:
+        await update.message.reply_text(
+            "✍️ Напиши тему после команды.\n\n"
+            "Например: `/plan реклама на сообщения в группе, тема — "
+            "поминовение усопших на Радоницу`\n\n"
+            "Я разберу тему и скажу, какие картинки прислать для теста.",
+            parse_mode="Markdown",
+        )
+        return
+
+    placeholder = await update.message.reply_text("🎨 Разбираю тему, подбираю идеи картинок…")
+    try:
+        brief = await CampaignPlanner().make_brief(theme)
+    except PlannerError as e:
+        logger.warning(f"plan_command: планировщик не сработал: {e}")
+        await placeholder.edit_text(
+            "Не смог разобрать тему сейчас (Claude недоступен). "
+            "Попробуй ещё раз через минуту или пришли фото с темой в подписи — "
+            "соберу объявления напрямую."
+        )
+        return
+    except Exception as e:
+        logger.exception(f"plan_command упал: {e}")
+        await placeholder.edit_text(f"Ошибка: {type(e).__name__}. Попробуй ещё раз.")
+        return
+
+    await placeholder.edit_text(format_brief_message(brief), parse_mode="Markdown")
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -456,6 +499,10 @@ async def handle_photo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     Phase 5.9: smoke test проверяется вторым.
     Обычный фото-flow — третьим (когда нет специальных режимов).
     """
+    # Шаг 2 продукта: launch_auto (авто-сетка тестов за одно фото) — приоритет
+    if await handle_launch_auto_photo(update, context):
+        return
+
     # Phase 5.17: launch_20 режим (20 кампаний за 4 фото)
     if await handle_launch_20_photo(update, context):
         return
@@ -2761,6 +2808,168 @@ LAUNCH_20_PHOTO_HINTS = {
     (47, 52): "зрелые — IMG_5704 (Владимирская икона, ⭐⭐⭐) или IMG_5711",
     (53, 58): "бабушки — IMG_5705 (Утоли моя печали) или IMG_5710 (благословение ребёнка)",
 }
+
+
+async def _generate_auto_copies(theme: str, n: int) -> list[AdCopy]:
+    """N текстов под тему: Claude → fallback на предустановленные."""
+    try:
+        variants = await ClaudeCopywriter().generate_copy_variants(theme=theme, n=n)
+        if variants:
+            return variants[:n]
+    except Exception as e:
+        logger.warning(f"launch_auto: Claude недоступен, беру предустановленные тексты: {e}")
+    # Fallback — заведомо рабочие предустановленные тексты (не оставляем без рекламы).
+    return [
+        AdCopy(title=d["title"], text=d["text"], about=d["about"], cta="write")
+        for d in LAUNCH_20_COPIES[:n]
+    ]
+
+
+async def launch_auto_command(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    """Шаг 2 продукта: бот САМ решает сколько тестов и собирает их.
+
+    `/launch_auto <тема>` — бот считает сетку «все возрасты × авто-число
+    текстов» на минимальных бюджетах (100₽/тест) так, чтобы суммарно не
+    пробить дневной лимит `MAX_DAILY_SPEND_RUB`, генерит тексты через Claude
+    и просит одно фото. Реализует «сам определяет количество тестов на все
+    возраста» из видения Vizit'а.
+    """
+    segments = settings.vk_audience_segment_ids_parsed
+    if not segments:
+        await update.message.reply_text(
+            "❌ В Railway env не задан `VK_AUDIENCE_SEGMENT_IDS`.",
+            parse_mode="Markdown",
+        )
+        return
+
+    theme = " ".join(context.args).strip() if context.args else ""
+    if not theme:
+        await update.message.reply_text(
+            "✍️ Напиши тему после команды.\n\n"
+            "Например: `/launch_auto молитва о семье и детях`\n\n"
+            "Я сам решу, сколько тестов запустить на все возрасты, на "
+            "минимальных бюджетах под твой дневной лимит. Денег зря не трачу.",
+            parse_mode="Markdown",
+        )
+        return
+
+    try:
+        plan = plan_test_grid(
+            max_daily_spend_rub=settings.max_daily_spend_rub,
+            ages=LAUNCH_20_AGE_ORDER,
+        )
+    except ValueError as e:
+        await update.message.reply_text(f"❌ {e}", parse_mode="Markdown")
+        return
+
+    copies = await _generate_auto_copies(theme, plan.variants)
+
+    context.user_data["launch_auto_mode"] = True
+    context.user_data["launch_auto_plan"] = plan
+    context.user_data["launch_auto_copies"] = copies
+    context.user_data["launch_auto_theme"] = theme
+
+    warn = "" if plan.full_age_coverage else f"\n⚠️ {plan.note}\n"
+    await update.message.reply_text(
+        f"🤖 *Авто-сетка тестов под тему «{theme}»*\n\n"
+        f"Я посчитал под твой дневной лимит *{settings.max_daily_spend_rub}₽*:\n"
+        f"— *{plan.total_campaigns} тестов* ({len(plan.ages)} возрастов × "
+        f"{plan.variants} текстов)\n"
+        f"— по *{plan.per_campaign_rub}₽* на тест × {plan.days} дн = "
+        f"*{plan.total_cost_rub}₽* всего\n"
+        f"— тексты сгенерированы под тему\n"
+        f"{warn}\n"
+        f"📷 Пришли *одно фото* (по идеям из `/plan`) — соберу все тесты на нём.\n\n"
+        f"Чтобы отменить — напиши «отмена».",
+        parse_mode="Markdown",
+    )
+
+
+async def handle_launch_auto_photo(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> bool:
+    """Фото в режиме launch_auto: одно фото → вся авто-сетка тестов.
+
+    Returns True если обработали (handle_photo дальше не идёт), False если
+    не в режиме launch_auto.
+    """
+    if not context.user_data.get("launch_auto_mode"):
+        return False
+
+    plan = context.user_data.get("launch_auto_plan")
+    copies = context.user_data.get("launch_auto_copies")
+    if plan is None or not copies:
+        context.user_data["launch_auto_mode"] = False
+        return True
+
+    photo = update.message.photo[-1]
+    try:
+        tg_file = await photo.get_file()
+        image_bytes = bytes(await tg_file.download_as_bytearray())
+    except Exception as e:
+        await update.message.reply_text(
+            f"❌ Не смог скачать фото: `{type(e).__name__}: {e}`. "
+            f"Перезапусти `/launch_auto`.",
+            parse_mode="Markdown",
+        )
+        context.user_data["launch_auto_mode"] = False
+        return True
+
+    await update.message.reply_text(
+        f"✅ Фото принято. Собираю *{plan.total_campaigns} тестов* по "
+        f"{plan.per_campaign_rub}₽ — минуту-две. Не отправляй ничего, пока "
+        f"не отвечу.",
+        parse_mode="Markdown",
+    )
+
+    try:
+        ads_client = VKAdsClient.from_settings()
+        if ads_client is None:
+            await update.message.reply_text("❌ VK Ads клиент не настроен.")
+            context.user_data["launch_auto_mode"] = False
+            return True
+
+        creator = AdCreator(ads_client)
+        images_by_age = {age: image_bytes for age in plan.ages}
+        copies_by_age = {age: copies for age in plan.ages}
+        community_url = settings.vk_community_url or "https://vk.com/pomolimsy"
+
+        results = await creator.create_batch_campaigns(
+            images_by_age=images_by_age,
+            copies_by_age=copies_by_age,
+            community_url=community_url,
+            daily_budget_rub_per_campaign=plan.per_campaign_rub,
+            days_duration=plan.days,
+        )
+    except Exception as e:
+        logger.exception("launch_auto campaigns creation failed")
+        await update.message.reply_text(
+            f"❌ Не смог создать тесты: `{type(e).__name__}: {e}`",
+            parse_mode="Markdown",
+        )
+        context.user_data["launch_auto_mode"] = False
+        return True
+
+    ids_summary = ", ".join(f"`{r.ad_plan_id}`" for r in results[:30])
+    await update.message.reply_text(
+        f"✅ *Запущено тестов: {len(results)} из {plan.total_campaigns}*\n\n"
+        f"Бюджет: {plan.per_campaign_rub}₽/день × {plan.days} дн на каждый = "
+        f"~{len(results) * plan.per_campaign_rub * plan.days}₽ всего\n\n"
+        f"*ID:* {ids_summary}\n\n"
+        f"*Что дальше:* кампании на модерации (1-4 ч). Дальше Сторож сам "
+        f"следит, дневной рубильник стережёт лимит. К утру `/watchdog` "
+        f"покажет CPL по каждому, отчёт придёт в 9:00.",
+        parse_mode="Markdown",
+    )
+
+    context.user_data["launch_auto_mode"] = False
+    for k in ("launch_auto_plan", "launch_auto_copies", "launch_auto_theme"):
+        context.user_data.pop(k, None)
+
+    logger.info(f"launch_auto: создано {len(results)}/{plan.total_campaigns} тестов")
+    return True
 
 
 async def launch_20_command(

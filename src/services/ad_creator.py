@@ -1159,6 +1159,97 @@ class AdCreator:
         return results
 
 
+# Минимальный бюджет одной тест-кампании в день — РЕКОМЕНДОВАННЫЙ VK
+# минимум (300₽), подтверждён Vizit'ом из кабинета 26.06.2026. Технический
+# пол VK ниже (~100₽), но на нём кампания недокручивает и данных для вывода
+# о CPL не набирает — для теста берём именно рекомендованный минимум, иначе
+# деньги на тест, который ничего не показал.
+MIN_TEST_BUDGET_RUB = 300
+
+
+@dataclass
+class TestGridPlan:
+    """Авто-сетка тестов (Шаг 2 продукта): бот сам решает сколько тестов
+    запустить на минимальных бюджетах под дневной потолок."""
+
+    __test__ = False  # не тест-класс для pytest (имя начинается с Test)
+
+    ages: list[tuple[int, int]]   # возрасты, попавшие в сетку
+    variants: int                 # текстов на каждый возраст
+    per_campaign_rub: int         # бюджет одной кампании в день
+    days: int                     # длительность
+    total_campaigns: int          # всего кампаний = len(ages) × variants
+    total_cost_rub: int           # суммарная стоимость дня
+    full_age_coverage: bool       # хватило ли бюджета на ВСЕ возрасты
+    note: str                     # человекочитаемое объяснение
+
+
+def plan_test_grid(
+    *,
+    max_daily_spend_rub: int,
+    ages: list[tuple[int, int]],
+    per_campaign_rub: int = MIN_TEST_BUDGET_RUB,
+    max_variants: int = 5,
+    days: int = 1,
+) -> TestGridPlan:
+    """Сам определяет число тестов под потолок дня на минимальных бюджетах.
+
+    Принцип Vizit'а (INSTRUCTIONS «ПРОДУКТ»): тестируем дёшево, потолок
+    держит дневной рубильник. Логика: каждый тест по `per_campaign_rub`,
+    сетка = все возрасты × сколько влезет вариантов текста, но так чтобы
+    суммарно не пробить `max_daily_spend_rub`.
+
+    Если бюджета не хватает даже на по одному тексту на каждый возраст —
+    берём столько возрастов, сколько влезает, и честно помечаем
+    full_age_coverage=False (Vizit'у предложат поднять лимит).
+    """
+    if per_campaign_rub <= 0:
+        raise ValueError("per_campaign_rub должен быть > 0")
+    if not ages:
+        raise ValueError("ages пустой")
+
+    n_ages = len(ages)
+    max_campaigns = max_daily_spend_rub // per_campaign_rub
+    if max_campaigns < 1:
+        raise ValueError(
+            f"Дневной лимит {max_daily_spend_rub}₽ меньше минимума на один "
+            f"тест ({per_campaign_rub}₽). Подними MAX_DAILY_SPEND_RUB."
+        )
+
+    variants = min(max_variants, max_campaigns // n_ages)
+    if variants >= 1:
+        used_ages = list(ages)
+        total = n_ages * variants
+        note = (
+            f"{n_ages} возрастов × {variants} текстов = {total} тестов "
+            f"по {per_campaign_rub}₽ = {total * per_campaign_rub}₽ "
+            f"(в пределах лимита {max_daily_spend_rub}₽)"
+        )
+        full = True
+    else:
+        # Бюджета не хватает на все возрасты даже по 1 тексту.
+        variants = 1
+        used_ages = list(ages[:max_campaigns])
+        total = len(used_ages)
+        note = (
+            f"Бюджета хватает только на {total} из {n_ages} возрастов "
+            f"(по 1 тексту, {per_campaign_rub}₽ каждый). Подними "
+            f"MAX_DAILY_SPEND_RUB чтобы покрыть все возрасты."
+        )
+        full = False
+
+    return TestGridPlan(
+        ages=used_ages,
+        variants=variants,
+        per_campaign_rub=per_campaign_rub,
+        days=days,
+        total_campaigns=total,
+        total_cost_rub=total * per_campaign_rub * days,
+        full_age_coverage=full,
+        note=note,
+    )
+
+
 # Сплит возрастов. По дефолту ОДНА группа (для тестирования с малым балансом) —
 # когда баланс позволит, расширим до полного A/B сплита по 5 окон по 2 года.
 # Полный сплит для будущего использования:

@@ -22,6 +22,7 @@ from src.telegram_bot.handlers import (
     handle_text,
     inspect_command,
     kill_bad_command,
+    launch_auto_command,
     launch_batch_command,
     launch_test_command,
     launch_20_command,
@@ -29,6 +30,7 @@ from src.telegram_bot.handlers import (
     menu_command,
     on_callback,
     pause_command,
+    plan_command,
     pause_non_batch_command,
     set_batch_budget_command,
     start_command,
@@ -112,6 +114,10 @@ def build_bot() -> Application:
     application.add_handler(
         CommandHandler("launch_20", launch_20_command, filters=owner_filter)
     )
+    # Шаг 2 продукта: бот сам решает число тестов на минимальных бюджетах.
+    application.add_handler(
+        CommandHandler("launch_auto", launch_auto_command, filters=owner_filter)
+    )
     application.add_handler(
         CommandHandler("pause", pause_command, filters=owner_filter)
     )
@@ -129,6 +135,10 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("menu", menu_command, filters=owner_filter)
+    )
+    # «Новая реклама» (Шаг 1 продукта): тема → какие картинки нужны.
+    application.add_handler(
+        CommandHandler("plan", plan_command, filters=owner_filter)
     )
 
     # Сообщения
