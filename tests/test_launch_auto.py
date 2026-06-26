@@ -212,3 +212,51 @@ async def test_handle_launch_auto_photo_launches_grid_at_min_budget():
     assert len(kwargs["images_by_age"]) == 4
     # Режим сброшен
     assert context.user_data["launch_auto_mode"] is False
+
+
+# ---- рука Тимура: Боба готовит запуск (launch_ads) ----
+
+
+def test_launch_ads_tool_registered():
+    """Инструмент Тимура есть в схеме Бобы."""
+    from src.agents.boba_tools import BOBA_TOOLS_SCHEMA
+
+    assert "launch_ads" in {t["name"] for t in BOBA_TOOLS_SCHEMA}
+
+
+@pytest.mark.asyncio
+async def test_boba_setup_launch_arms_photo_mode():
+    """_boba_setup_launch считает сетку, пишет тексты и включает режим фото."""
+    from src.telegram_bot.handlers import _boba_setup_launch
+    from src.services.ad_creator import AdCopy
+
+    context = MagicMock()
+    context.user_data = {}
+
+    fake_copies = [AdCopy(title="t", text="x", about="a", cta="write")] * 2
+    with patch("src.telegram_bot.handlers.settings") as s, patch(
+        "src.telegram_bot.handlers._generate_auto_copies",
+        AsyncMock(return_value=fake_copies),
+    ):
+        s.vk_audience_segment_ids_parsed = [80507749]
+        s.max_daily_spend_rub = 2400  # 8 тестов по 300₽
+        msg = await _boba_setup_launch(context, "о здравии близких")
+
+    assert context.user_data["launch_auto_mode"] is True
+    assert context.user_data["launch_auto_theme"] == "о здравии близких"
+    assert context.user_data["launch_auto_plan"].total_campaigns == 8
+    assert "фото" in msg.lower()
+
+
+@pytest.mark.asyncio
+async def test_boba_setup_launch_blocks_without_segment():
+    from src.telegram_bot.handlers import _boba_setup_launch
+
+    context = MagicMock()
+    context.user_data = {}
+    with patch("src.telegram_bot.handlers.settings") as s:
+        s.vk_audience_segment_ids_parsed = []
+        msg = await _boba_setup_launch(context, "тема")
+
+    assert "VK_AUDIENCE_SEGMENT_IDS" in msg
+    assert context.user_data.get("launch_auto_mode") is not True
