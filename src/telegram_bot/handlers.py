@@ -1767,11 +1767,11 @@ async def _boba_setup_launch(context: ContextTypes.DEFAULT_TYPE, theme: str) -> 
     except ValueError as e:
         return f"Бюджет не позволяет запустить: {e}"
 
-    copies = await _generate_auto_copies(theme, plan.variants)
+    copies_by_age = await _generate_copies_by_age(theme, plan.ages, plan.variants)
 
     context.user_data["launch_auto_mode"] = True
     context.user_data["launch_auto_plan"] = plan
-    context.user_data["launch_auto_copies"] = copies
+    context.user_data["launch_auto_copies_by_age"] = copies_by_age
     context.user_data["launch_auto_theme"] = theme
 
     coverage = "" if plan.full_age_coverage else f" ⚠️ {plan.note}"
@@ -2844,6 +2844,44 @@ async def _generate_auto_copies(theme: str, n: int) -> list[AdCopy]:
     ]
 
 
+# Жизненный этап аудитории по возрасту — чтобы тексты были РАЗНЫЕ под каждый
+# сегмент (как в старом /launch_batch: молодым о детях, старшим о внуках).
+AGE_LIFE_STAGE = {
+    (36, 40): "молодые матери: молитва о детях и младенцах, о здравии семьи",
+    (41, 46): "женщины 41-46: о детях, о здравии родителей, о мире в семье",
+    (47, 52): "женщины 47-52: о взрослых детях, о больных близких, о силах в трудах",
+    (53, 58): "женщины 53-58: об упокоении ушедших, о внуках, память о родных",
+}
+
+
+def _fallback_copies_for_age(age: tuple, n: int) -> list[AdCopy]:
+    """Запасные тексты под возраст: берём тематические BATCH_COPIES если есть."""
+    pool = BATCH_AGE_TO_COPIES.get(age) or LAUNCH_20_COPIES
+    return [
+        AdCopy(title=d["title"], text=d["text"], about=d["about"], cta="write")
+        for d in pool[:n]
+    ]
+
+
+async def _generate_copies_by_age(theme: str, ages: list, n: int) -> dict:
+    """На каждый возраст — свои N текстов, заточенные под его жизненный этап.
+
+    Возвращает {age_tuple: [AdCopy, ...]}. Это и есть сегментация по возрасту
+    из старого /launch_batch, но теперь под любую тему и автоматически.
+    """
+    cw = ClaudeCopywriter()
+    result: dict = {}
+    for age in ages:
+        hint = AGE_LIFE_STAGE.get(age, "")
+        try:
+            variants = await cw.generate_copy_variants(theme=theme, n=n, extra_context=hint)
+            result[age] = variants[:n] if variants else _fallback_copies_for_age(age, n)
+        except Exception as e:
+            logger.warning(f"launch_auto: тексты для {age} через fallback: {e}")
+            result[age] = _fallback_copies_for_age(age, n)
+    return result
+
+
 async def launch_auto_command(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
@@ -2883,11 +2921,11 @@ async def launch_auto_command(
         await update.message.reply_text(f"❌ {e}", parse_mode="Markdown")
         return
 
-    copies = await _generate_auto_copies(theme, plan.variants)
+    copies_by_age = await _generate_copies_by_age(theme, plan.ages, plan.variants)
 
     context.user_data["launch_auto_mode"] = True
     context.user_data["launch_auto_plan"] = plan
-    context.user_data["launch_auto_copies"] = copies
+    context.user_data["launch_auto_copies_by_age"] = copies_by_age
     context.user_data["launch_auto_theme"] = theme
 
     warn = "" if plan.full_age_coverage else f"\n⚠️ {plan.note}\n"
@@ -2898,7 +2936,7 @@ async def launch_auto_command(
         f"{plan.variants} текстов)\n"
         f"— по *{plan.per_campaign_rub}₽* на тест × {plan.days} дн = "
         f"*{plan.total_cost_rub}₽* всего\n"
-        f"— тексты сгенерированы под тему\n"
+        f"— тексты свои под каждый возраст (молодым о детях, старшим о внуках)\n"
         f"{warn}\n"
         f"📷 Пришли *одно фото* (по идеям из `/plan`) — соберу все тесты на нём.\n\n"
         f"Чтобы отменить — напиши «отмена».",
@@ -2918,8 +2956,8 @@ async def handle_launch_auto_photo(
         return False
 
     plan = context.user_data.get("launch_auto_plan")
-    copies = context.user_data.get("launch_auto_copies")
-    if plan is None or not copies:
+    copies_by_age = context.user_data.get("launch_auto_copies_by_age")
+    if plan is None or not copies_by_age:
         context.user_data["launch_auto_mode"] = False
         return True
 
@@ -2952,7 +2990,6 @@ async def handle_launch_auto_photo(
 
         creator = AdCreator(ads_client)
         images_by_age = {age: image_bytes for age in plan.ages}
-        copies_by_age = {age: copies for age in plan.ages}
         community_url = settings.vk_community_url or "https://vk.com/pomolimsy"
 
         results = await creator.create_batch_campaigns(
@@ -2984,7 +3021,7 @@ async def handle_launch_auto_photo(
     )
 
     context.user_data["launch_auto_mode"] = False
-    for k in ("launch_auto_plan", "launch_auto_copies", "launch_auto_theme"):
+    for k in ("launch_auto_plan", "launch_auto_copies_by_age", "launch_auto_theme"):
         context.user_data.pop(k, None)
 
     logger.info(f"launch_auto: создано {len(results)}/{plan.total_campaigns} тестов")

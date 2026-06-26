@@ -137,9 +137,10 @@ async def test_launch_auto_with_theme_sets_mode_and_plan():
     context.user_data = {}
 
     fake_copies = [AdCopy(title="t", text="x", about="a", cta="write")] * 5
+    fake_by_age = {a: fake_copies for a in [(36, 40), (41, 46), (47, 52), (53, 58)]}
     with patch("src.telegram_bot.handlers.settings") as s, patch(
-        "src.telegram_bot.handlers._generate_auto_copies",
-        AsyncMock(return_value=fake_copies),
+        "src.telegram_bot.handlers._generate_copies_by_age",
+        AsyncMock(return_value=fake_by_age),
     ):
         s.vk_audience_segment_ids_parsed = [80507749]
         s.max_daily_spend_rub = 6000  # при 300₽/тест даёт полные 20 тестов
@@ -173,6 +174,7 @@ async def test_handle_launch_auto_photo_launches_grid_at_min_budget():
 
     plan = plan_test_grid(max_daily_spend_rub=2400, ages=AGES_4)  # 8 тестов, 300₽
     copies = [AdCopy(title="t", text="x", about="a", cta="write")] * plan.variants
+    copies_by_age = {age: copies for age in plan.ages}
 
     update = MagicMock()
     update.message.reply_text = AsyncMock()
@@ -186,7 +188,7 @@ async def test_handle_launch_auto_photo_launches_grid_at_min_budget():
     context.user_data = {
         "launch_auto_mode": True,
         "launch_auto_plan": plan,
-        "launch_auto_copies": copies,
+        "launch_auto_copies_by_age": copies_by_age,
     }
 
     fake_client = MagicMock()
@@ -234,9 +236,10 @@ async def test_boba_setup_launch_arms_photo_mode():
     context.user_data = {}
 
     fake_copies = [AdCopy(title="t", text="x", about="a", cta="write")] * 2
+    fake_by_age = {a: fake_copies for a in [(36, 40), (41, 46), (47, 52), (53, 58)]}
     with patch("src.telegram_bot.handlers.settings") as s, patch(
-        "src.telegram_bot.handlers._generate_auto_copies",
-        AsyncMock(return_value=fake_copies),
+        "src.telegram_bot.handlers._generate_copies_by_age",
+        AsyncMock(return_value=fake_by_age),
     ):
         s.vk_audience_segment_ids_parsed = [80507749]
         s.max_daily_spend_rub = 2400  # 8 тестов по 300₽
@@ -260,3 +263,40 @@ async def test_boba_setup_launch_blocks_without_segment():
 
     assert "VK_AUDIENCE_SEGMENT_IDS" in msg
     assert context.user_data.get("launch_auto_mode") is not True
+
+
+# ---- посегментная генерация: разные тексты под каждый возраст ----
+
+
+@pytest.mark.asyncio
+async def test_copies_by_age_passes_age_hint():
+    """_generate_copies_by_age зовёт копирайтер с подсказкой жизненного этапа."""
+    from src.telegram_bot.handlers import _generate_copies_by_age
+    from src.services.ad_creator import AdCopy
+
+    fake_cw = MagicMock()
+    fake_cw.generate_copy_variants = AsyncMock(
+        return_value=[AdCopy(title="t", text="x", about="a", cta="write")]
+    )
+    with patch("src.telegram_bot.handlers.ClaudeCopywriter", return_value=fake_cw):
+        result = await _generate_copies_by_age("здравие", [(36, 40), (53, 58)], 1)
+
+    assert set(result.keys()) == {(36, 40), (53, 58)}
+    # Для разных возрастов передаётся разный extra_context (хинт этапа)
+    hints = {c.kwargs.get("extra_context") for c in fake_cw.generate_copy_variants.await_args_list}
+    assert len(hints) == 2  # два разных хинта
+
+
+@pytest.mark.asyncio
+async def test_copies_by_age_fallback_uses_batch_themes():
+    """Если Claude упал — берём тематические BATCH_COPIES под возраст."""
+    from src.telegram_bot.handlers import _generate_copies_by_age
+
+    fake_cw = MagicMock()
+    fake_cw.generate_copy_variants = AsyncMock(side_effect=Exception("Claude down"))
+    with patch("src.telegram_bot.handlers.ClaudeCopywriter", return_value=fake_cw):
+        result = await _generate_copies_by_age("тема", [(53, 58)], 2)
+
+    # Должны прийти запасные тексты под 53-58 (про упокоение/внуков)
+    assert len(result[(53, 58)]) == 2
+    assert result[(53, 58)][0].title  # непустые
