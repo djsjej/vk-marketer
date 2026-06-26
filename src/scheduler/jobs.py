@@ -53,17 +53,117 @@ def setup_scheduler(bot: Bot) -> AsyncIOScheduler:
 
 
 async def send_morning_report(bot: Bot) -> None:
-    """Утренний отчёт владельцу: вчерашние метрики и рекомендации."""
+    """Утренний отчёт владельцу: вчерашние метрики + анализ Claude (Трек C).
+
+    До этого был заглушкой ('TODO: подключить VK Ads'). Теперь:
+    1. Берём метрики за вчера по всем кампаниям кабинета.
+    2. Прогоняем через ClaudeAnalyzer (мозг-аналитик, до сих пор не был
+       подключён к реальным данным).
+    3. Шлём владельцу: живые цифры + вывод/проблемы/рекомендации.
+
+    Рекомендации НЕ исполняются автоматически — отчёт информирует, решает
+    человек (human gate из Конституции). Деградация: если Claude недоступен
+    или VK не настроен — всё равно шлём то, что есть (цифры без анализа).
+    """
+    from datetime import datetime, timedelta
+
+    from src.vk_ads.client import VKAdsClient
+    from src.vk_ads.models import aggregate_stats_item
+
     logger.info("Запуск утреннего отчёта")
-    # TODO: 
-    # 1. Через VKAdsClient получить метрики за вчера
-    # 2. Через ClaudeAnalyzer получить рекомендации
-    # 3. Сформировать сообщение с inline-кнопками для подтверждений
-    # 4. Отправить владельцу
+
+    client = VKAdsClient.from_settings()
+    if client is None:
+        await _safe_send(bot, "🌅 *Утренний отчёт*\n\nVK Ads не настроен — нет данных за вчера.")
+        return
+
+    yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+    try:
+        campaigns = await client.get_campaigns()
+        campaign_ids = [int(c["id"]) for c in campaigns if c.get("id")]
+        name_by_id = {int(c["id"]): c.get("name", "?") for c in campaigns if c.get("id")}
+    except Exception as e:
+        logger.exception(f"[Отчёт] Не смог получить кампании: {e}")
+        await _safe_send(bot, f"🌅 *Утренний отчёт*\n\nНе смог получить кампании из VK: {e}")
+        return
+
+    stats_list = []
+    if campaign_ids:
+        try:
+            resp = await client.get_campaign_stats(
+                campaign_ids=campaign_ids, date_from=yesterday, date_to=yesterday
+            )
+            items = resp.get("items", []) if isinstance(resp, dict) else []
+            for item in items:
+                s = aggregate_stats_item(item)
+                # В отчёт берём только кампании что реально крутились вчера.
+                if s is not None and s.impressions > 0:
+                    stats_list.append(s)
+        except Exception as e:
+            logger.exception(f"[Отчёт] Не смог получить метрики за вчера: {e}")
+
+    if not stats_list:
+        await _safe_send(
+            bot,
+            f"🌅 *Утренний отчёт за {yesterday}*\n\n"
+            f"Вчера активных показов не было — кампании не крутились.",
+        )
+        return
+
+    # Цифры — детерминированно, своими руками (не доверяем числа Claude).
+    total_spent = sum(s.spent_rub for s in stats_list)
+    total_leads = sum(s.leads for s in stats_list)
+    total_clicks = sum(s.clicks for s in stats_list)
+    avg_cpl = total_spent / total_leads if total_leads else 0.0
+
+    lines = [
+        f"🌅 *Утренний отчёт за {yesterday}*\n",
+        f"Кампаний крутилось: *{len(stats_list)}*",
+        f"Потрачено: *{total_spent:.0f}₽*",
+        f"Кликов: *{total_clicks}*, написавших: *{total_leads}*",
+    ]
+    if total_leads:
+        lines.append(f"Средний CPL: *{avg_cpl:.0f}₽* (норма ≤50₽)")
+    else:
+        lines.append("Средний CPL: _нет написавших_")
+
+    # Анализ Claude — best effort. Если упал, цифры уже собраны выше.
+    analysis = await _analyze_morning(stats_list)
+    if analysis:
+        if analysis.get("summary"):
+            lines.append(f"\n*Вывод:* {analysis['summary']}")
+        for p in analysis.get("problems", [])[:5]:
+            lines.append(f"⚠️ {p}")
+        for w in analysis.get("winners", [])[:5]:
+            lines.append(f"✅ {w}")
+        recs = analysis.get("recommendations", [])
+        if recs:
+            lines.append("\n*Рекомендации* (решаешь ты):")
+            for r in recs[:5]:
+                cid = r.get("campaign_id") or r.get("based_on")
+                cname = name_by_id.get(cid, cid)
+                lines.append(f"• {r.get('action', '?')} `{cname}` — {r.get('reason', '')}")
+
+    await _safe_send(bot, "\n".join(lines))
+
+
+async def _analyze_morning(stats_list: list) -> dict | None:
+    """Прогоняет метрики через ClaudeAnalyzer. None при любой ошибке."""
+    try:
+        from src.claude_brain.analyzer import ClaudeAnalyzer
+
+        return await ClaudeAnalyzer().analyze_campaigns(stats_list)
+    except Exception as e:
+        logger.warning(f"[Отчёт] ClaudeAnalyzer недоступен, шлю отчёт без анализа: {e}")
+        return None
+
+
+async def _safe_send(bot: Bot, text: str) -> None:
+    """Отправка в Telegram с Markdown, не падает при ошибке."""
     try:
         await bot.send_message(
-            chat_id=settings.telegram_owner_id,
-            text="🌅 Утренний отчёт\n\nTODO: подключить VK Ads и аналитику.",
+            chat_id=settings.telegram_owner_id, text=text, parse_mode="Markdown"
         )
     except Exception as e:
         logger.error(f"Не удалось отправить утренний отчёт: {e}")
