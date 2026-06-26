@@ -403,3 +403,64 @@ async def test_recommend_images_via_dispatcher():
     ):
         result = await execute_tool("recommend_images", {"theme": "молитва"})
     assert "Икона на рассвете" in result
+
+
+# ============================================================
+# Регрессия: пустые text-блоки не должны попадать в историю
+# (классическая причина BadRequestError 400 от Anthropic)
+# ============================================================
+
+
+@pytest.mark.asyncio
+async def test_empty_text_block_not_added_to_history():
+    """Пустой text рядом с tool_use не попадает в историю → нет 400 на след. запросе."""
+    long_persona = "Ты эксперт. " * 50
+    agent = DialogAgent(persona=long_persona)
+
+    # 1-й ответ: ПУСТОЙ text + tool_use (так иногда отвечает Claude)
+    first = _make_response(
+        [
+            _make_text_block("   "),  # пустой/пробельный — НЕ должен попасть в историю
+            _make_tool_use_block("t1", "get_account_status", {}),
+        ]
+    )
+    # 2-й ответ: финальный текст без tools
+    second = _make_response([_make_text_block("Готово, вот статус.")])
+    agent.client.messages.create = AsyncMock(side_effect=[first, second])
+
+    tool_executor = AsyncMock(return_value="баланс 100₽")
+
+    response = await agent.chat(
+        "статус?",
+        tools=BOBA_TOOLS_SCHEMA,
+        tool_executor=tool_executor,
+    )
+
+    assert response.text == "Готово, вот статус."
+    # В истории не должно быть ни одного text-блока с пустой строкой
+    for msg in response.updated_history:
+        content = msg["content"]
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get("type") == "text":
+                    assert block["text"].strip() != ""
+
+
+@pytest.mark.asyncio
+async def test_fully_empty_assistant_turn_not_added():
+    """Если ассистент вернул только пустой text — не добавляем пустой ход в историю."""
+    long_persona = "Ты эксперт. " * 50
+    agent = DialogAgent(persona=long_persona)
+
+    empty = _make_response([_make_text_block("")])
+    agent.client.messages.create = AsyncMock(return_value=empty)
+
+    response = await agent.chat("привет", tools=BOBA_TOOLS_SCHEMA, tool_executor=AsyncMock())
+
+    # Пустой ассистентский ход не должен попасть в историю
+    assert all(
+        not (isinstance(m["content"], list) and len(m["content"]) == 0)
+        for m in response.updated_history
+    )
+    # И пользователю отдаём осмысленный фолбэк, а не пустую строку
+    assert response.text.strip() != ""

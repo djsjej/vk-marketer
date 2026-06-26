@@ -173,11 +173,18 @@ class DialogAgent:
             tool_uses = [b for b in message.content if b.type == "tool_use"]
             text_blocks = [b for b in message.content if b.type == "text"]
 
-            # Добавляем ответ ассистента в историю (с tool_use блоками если есть)
+            # Добавляем ответ ассистента в историю (с tool_use блоками если есть).
+            # ВАЖНО: пропускаем ПУСТЫЕ text-блоки. Anthropic API отвергает
+            # сообщения, где есть text-блок с пустой строкой ("") — это
+            # классическая причина BadRequestError (400). Claude иногда
+            # возвращает пустой text рядом с tool_use; если положить его в
+            # историю, следующий запрос падает с 400, и весь диалог Бобы
+            # ломается. Фильтруем здесь.
             assistant_content: list[dict] = []
             for block in message.content:
                 if block.type == "text":
-                    assistant_content.append({"type": "text", "text": block.text})
+                    if block.text and block.text.strip():
+                        assistant_content.append({"type": "text", "text": block.text})
                 elif block.type == "tool_use":
                     assistant_content.append(
                         {
@@ -188,11 +195,19 @@ class DialogAgent:
                         }
                     )
 
-            messages.append({"role": "assistant", "content": assistant_content})
+            # Пустой ассистентский ход тоже отвергается API — добавляем в
+            # историю только если есть что добавить.
+            if assistant_content:
+                messages.append({"role": "assistant", "content": assistant_content})
 
             # Если нет tool_use блоков — это финальный ответ, выходим
             if not tool_uses:
-                response_text = "".join(b.text for b in text_blocks)
+                response_text = "".join(b.text for b in text_blocks).strip()
+                if not response_text:
+                    response_text = (
+                        "Боба задумался, но не ответил словами. "
+                        "Переформулируй вопрос чуть иначе."
+                    )
                 return AgentResponse(text=response_text, updated_history=messages)
 
             # Иначе — выполняем все tool calls параллельно (по факту последовательно)
