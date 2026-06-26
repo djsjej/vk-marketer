@@ -48,12 +48,14 @@ async def test_watchdog_auto_stops_bad_campaign():
     with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client), patch(
         "src.db.repository.save_stats_snapshots", AsyncMock(return_value=1)
     ), patch("src.db.repository.log_action", AsyncMock()), patch(
-        "src.scheduler.jobs.settings"
-    ) as s:
+        "src.knowledge.recorder.record_campaign_result", MagicMock(return_value=True)
+    ) as rec, patch("src.scheduler.jobs.settings") as s:
         s.auto_stop_enabled = True
         await check_metrics_and_anomalies(bot)
 
     client.pause_campaign.assert_awaited_once_with(1)
+    # Провал записан в базу знаний
+    assert rec.call_args.kwargs["won"] is False
     text = bot.send_message.await_args.kwargs["text"]
     assert "сам выключил" in text.lower()
 
