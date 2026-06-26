@@ -133,16 +133,25 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
     from src.vk_ads.models import aggregate_stats_item
 
     items = stats_response.get("items", []) if isinstance(stats_response, dict) else []
+    snapshots = []  # для записи истории в БД (Трек B)
     for item in items:
         stats = aggregate_stats_item(item)
         if stats is None:
             continue
+
+        snapshots.append(stats)
 
         decision = check_campaign_anomaly(stats)
         if decision.action == "alert":
             alerts.append(
                 (stats.campaign_id, name_by_id.get(stats.campaign_id, "?"), decision.reason)
             )
+
+    # Память организации: каждый проход Сторожа фиксируем метрики в БД.
+    # Это даёт историю динамики для утреннего отчёта и детекта усталости.
+    from src.db.repository import save_stats_snapshots
+    saved = await save_stats_snapshots(snapshots)
+    logger.info(f"[Сторож] Записано снапшотов в БД: {saved}")
 
     # Сохраняем список «жёлтых» для /kill_bad
     from src.scheduler import bad_campaigns_state
@@ -271,6 +280,14 @@ async def check_daily_budget(bot: Bot) -> None:
             await client.pause_campaign(cid)
             paused.append(f"`{name}` (`{cid}`)")
             logger.info(f"[Бюджет] Авто-стоп кампании {cid} ({name})")
+            # Аудит: авто-действие с деньгами обязательно фиксируем (Трек B).
+            from src.db.repository import log_action
+            await log_action(
+                "pause",
+                target_id=cid,
+                reason=f"Дневной лимит {settings.max_daily_spend_rub}₽ достигнут (расход {total_spent:.0f}₽)",
+                auto=True,
+            )
         except Exception as e:
             failed.append(f"`{name}` (`{cid}`)")
             logger.error(f"[Бюджет] Не смог выключить {cid}: {e}")

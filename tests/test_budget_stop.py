@@ -71,9 +71,13 @@ async def test_over_limit_pauses_all_active_and_alerts():
     bot = MagicMock()
     bot.send_message = AsyncMock()
 
-    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client):
+    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client), patch(
+        "src.db.repository.log_action", AsyncMock()
+    ) as mock_log:
         await check_daily_budget(bot)
 
+    # Каждое авто-выключение должно быть записано в аудит-лог.
+    assert mock_log.await_count == 2
     assert client.pause_campaign.await_count == 2
     paused_ids = {c.args[0] for c in client.pause_campaign.await_args_list}
     assert paused_ids == {1, 2}
@@ -115,7 +119,9 @@ async def test_spend_counted_across_all_campaigns_not_just_active():
     bot = MagicMock()
     bot.send_message = AsyncMock()
 
-    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client):
+    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client), patch(
+        "src.db.repository.log_action", AsyncMock()
+    ):
         await check_daily_budget(bot)
 
     # Лимит пробит суммой → активная (id=2) выключается.
