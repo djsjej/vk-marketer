@@ -158,8 +158,8 @@ async def test_execute_tool_handles_bad_arguments():
 # ============================================================
 
 
-def test_boba_tools_schema_has_all_5_tools():
-    """Все 5 заявленных инструментов есть в схеме."""
+def test_boba_tools_schema_has_all_tools():
+    """Все заявленные инструменты Бобы есть в схеме (+ рука Кирилла)."""
     tool_names = {t["name"] for t in BOBA_TOOLS_SCHEMA}
     expected = {
         "get_account_status",
@@ -167,6 +167,7 @@ def test_boba_tools_schema_has_all_5_tools():
         "get_campaign_stats",
         "read_knowledge",
         "append_knowledge",
+        "recommend_images",
     }
     assert tool_names == expected
 
@@ -338,3 +339,67 @@ async def test_dialog_agent_stops_at_max_iterations():
     # После 3 итераций срабатывает защита
     assert "⚠️" in response.text or "слишком много" in response.text.lower()
     assert agent.client.messages.create.call_count == 3
+
+
+# ============================================================
+# Tool 6: recommend_images (рука Кирилла)
+# ============================================================
+
+
+def test_recommend_images_registered():
+    """Инструмент Кирилла подключён к Бобе (схема + диспетчер)."""
+    from src.agents.boba_tools import _TOOL_DISPATCHER
+
+    names = {t["name"] for t in BOBA_TOOLS_SCHEMA}
+    assert "recommend_images" in names
+    assert "recommend_images" in _TOOL_DISPATCHER
+
+
+@pytest.mark.asyncio
+async def test_recommend_images_returns_kirill_brief():
+    """recommend_images зовёт Кирилла (CampaignPlanner) и возвращает бриф."""
+    from src.agents.boba_tools import recommend_images
+    from src.claude_brain.campaign_planner import CampaignBrief, ImageIdea
+
+    brief = CampaignBrief(
+        theme="Радоница",
+        analysis="память о близких",
+        image_ideas=[ImageIdea(description="Свеча в храме", mood="тишина", why="цепляет")],
+        avoid=["текст на картинке"],
+    )
+    fake_planner = MagicMock()
+    fake_planner.make_brief = AsyncMock(return_value=brief)
+
+    with patch(
+        "src.claude_brain.campaign_planner.CampaignPlanner", return_value=fake_planner
+    ):
+        result = await recommend_images("Радоница")
+
+    assert "Кирилл" in result
+    assert "Свеча в храме" in result
+
+
+@pytest.mark.asyncio
+async def test_recommend_images_empty_theme():
+    from src.agents.boba_tools import recommend_images
+
+    result = await recommend_images("   ")
+    assert "тема" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_recommend_images_via_dispatcher():
+    """Через execute_tool (как реально вызывает Боба) тоже работает."""
+    from src.claude_brain.campaign_planner import CampaignBrief, ImageIdea
+
+    brief = CampaignBrief(
+        theme="молитва",
+        image_ideas=[ImageIdea(description="Икона на рассвете")],
+    )
+    fake_planner = MagicMock()
+    fake_planner.make_brief = AsyncMock(return_value=brief)
+    with patch(
+        "src.claude_brain.campaign_planner.CampaignPlanner", return_value=fake_planner
+    ):
+        result = await execute_tool("recommend_images", {"theme": "молитва"})
+    assert "Икона на рассвете" in result

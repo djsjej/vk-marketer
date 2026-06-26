@@ -428,6 +428,54 @@ async def append_knowledge(file_name: str, entry: str) -> str:
 
 
 # ============================================================
+# Tool 6: recommend_images (рука Кирилла — креативщика)
+# ============================================================
+
+RECOMMEND_IMAGES_SCHEMA = {
+    "name": "recommend_images",
+    "description": (
+        "Спрашивает у креативщика Кирилла, какие изображения нужны под "
+        "заданную тему рекламы. Возвращает 3-4 конкретные идеи картинок "
+        "(что на фото, настроение, зачем сработает) и анти-список (чего "
+        "избегать по правилам VK Ads и этике православной ниши). Используй "
+        "когда Vizit просит рекламу по теме — ПЕРЕД запуском, чтобы сказать "
+        "ему какие фото прислать. Фото Vizit присылает сам."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "theme": {
+                "type": "string",
+                "description": (
+                    "Тема рекламы, например 'поминовение усопших на "
+                    "Радоницу' или 'молитва о здравии близких'."
+                ),
+            },
+        },
+        "required": ["theme"],
+    },
+}
+
+
+async def recommend_images(theme: str) -> str:
+    """Передаёт тему Кириллу (CampaignPlanner) и возвращает бриф по картинкам."""
+    theme = (theme or "").strip()
+    if not theme:
+        return "❌ Не указана тема — нечего передать Кириллу."
+    try:
+        from src.claude_brain.campaign_planner import (
+            CampaignPlanner,
+            format_brief_message,
+        )
+
+        brief = await CampaignPlanner().make_brief(theme)
+        return "Кирилл подобрал под тему:\n\n" + format_brief_message(brief)
+    except Exception as e:
+        logger.exception("recommend_images failed")
+        return f"❌ Кирилл не смог подобрать картинки сейчас: {type(e).__name__}: {e}"
+
+
+# ============================================================
 # Регистрация всех tools для передачи в Anthropic API
 # ============================================================
 
@@ -437,6 +485,7 @@ BOBA_TOOLS_SCHEMA: list[dict] = [
     GET_CAMPAIGN_STATS_SCHEMA,
     READ_KNOWLEDGE_SCHEMA,
     APPEND_KNOWLEDGE_SCHEMA,
+    RECOMMEND_IMAGES_SCHEMA,
 ]
 """Список tool definitions для передачи в поле tools запроса к Anthropic API."""
 
@@ -448,6 +497,7 @@ _TOOL_DISPATCHER = {
     "get_campaign_stats": get_campaign_stats,
     "read_knowledge": read_knowledge,
     "append_knowledge": append_knowledge,
+    "recommend_images": recommend_images,
 }
 
 
