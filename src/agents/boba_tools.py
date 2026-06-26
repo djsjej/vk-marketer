@@ -510,6 +510,81 @@ LAUNCH_ADS_SCHEMA = {
 
 
 # ============================================================
+# Tool 8: stop_ads (рука Тимура — выключение кампаний)
+# ============================================================
+
+STOP_ADS_SCHEMA = {
+    "name": "stop_ads",
+    "description": (
+        "Выключает (ставит на паузу) рекламу рукой Тимура. target='all' — "
+        "выключить ВСЕ активные кампании; либо передай ID кампании "
+        "(ad_plan_id числом-строкой), чтобы выключить одну. Используй когда "
+        "Vizit говорит 'отключи', 'останови', 'выключи рекламу'. Пауза "
+        "безопасна: деньги перестают тратиться, ничего не удаляется. Не "
+        "спрашивай разрешения у Тимура — ты сам им командуешь."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "target": {
+                "type": "string",
+                "description": "'all' для всех активных, либо ID кампании (число строкой).",
+            },
+        },
+        "required": ["target"],
+    },
+}
+
+
+async def stop_ads(target: str) -> str:
+    """Выключает кампании (рука Тимура). Пишет в аудит-лог."""
+    from src.db.repository import log_action
+    from src.vk_ads.client import VKAdsClient
+
+    client = VKAdsClient.from_settings()
+    if client is None:
+        return "❌ VK Ads не настроен — нечем выключать."
+
+    raw = (target or "").strip()
+    low = raw.lower()
+    try:
+        if low in {"all", "все", "всё", "all_active"}:
+            active = await client.get_active_ad_plans()
+            if not active:
+                return "Активных кампаний нет — выключать нечего."
+            stopped = 0
+            for c in active:
+                cid = int(c["id"])
+                try:
+                    await client.pause_campaign(cid)
+                    await log_action(
+                        "pause", target_id=cid,
+                        reason="Боба по команде Vizit'а: выключить всё", auto=False,
+                    )
+                    stopped += 1
+                except Exception as e:
+                    logger.warning(f"stop_ads: не смог выключить {cid}: {e}")
+            return f"Готово: Тимур выключил {stopped} из {len(active)} активных кампаний."
+
+        if raw.isdigit():
+            cid = int(raw)
+            await client.pause_campaign(cid)
+            await log_action(
+                "pause", target_id=cid,
+                reason="Боба по команде Vizit'а", auto=False,
+            )
+            return f"Готово: кампания {cid} выключена."
+
+        return (
+            f"Не понял, что выключать: '{raw}'. Скажи 'all' (выключить всё) "
+            f"или дай номер кампании."
+        )
+    except Exception as e:
+        logger.exception("stop_ads failed")
+        return f"❌ Не смог выключить: {type(e).__name__}: {e}"
+
+
+# ============================================================
 # Регистрация всех tools для передачи в Anthropic API
 # ============================================================
 
@@ -521,6 +596,7 @@ BOBA_TOOLS_SCHEMA: list[dict] = [
     APPEND_KNOWLEDGE_SCHEMA,
     RECOMMEND_IMAGES_SCHEMA,
     LAUNCH_ADS_SCHEMA,
+    STOP_ADS_SCHEMA,
 ]
 """Список tool definitions для передачи в поле tools запроса к Anthropic API."""
 
@@ -533,6 +609,7 @@ _TOOL_DISPATCHER = {
     "read_knowledge": read_knowledge,
     "append_knowledge": append_knowledge,
     "recommend_images": recommend_images,
+    "stop_ads": stop_ads,
 }
 
 
