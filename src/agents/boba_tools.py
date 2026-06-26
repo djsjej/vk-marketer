@@ -81,20 +81,12 @@ async def get_account_status() -> str:
                 "в Railway."
             )
 
-        # Получаем баланс и список кампаний
-        try:
-            balance = await ads_client.get_balance()
-        except Exception as e:
-            balance = None
-            logger.warning(f"get_balance failed: {e}")
-
         try:
             campaigns = await ads_client.get_campaigns()
         except Exception as e:
             campaigns = []
             logger.warning(f"get_campaigns failed: {e}")
 
-        # get_campaigns возвращает список объектов VK Ads с разными полями
         active_count = sum(
             1
             for c in campaigns
@@ -103,13 +95,33 @@ async def get_account_status() -> str:
         )
         total_count = len(campaigns)
 
-        balance_str = f"{balance}₽" if balance is not None else "недоступен"
+        # Баланс VK через API не отдаёт (проверено Бибой 26.06: /budget,
+        # /account, /transactions = 404; /user.json без баланса). Показываем
+        # вместо него РАСХОД ЗА СЕГОДНЯ — для контроля денег это важнее.
+        from datetime import datetime
+
+        from src.config import settings
+        from src.vk_ads.models import aggregate_stats_item
+
+        spent_today = 0.0
+        try:
+            ids = [int(c["id"]) for c in campaigns if c.get("id")]
+            if ids:
+                today = datetime.now().strftime("%Y-%m-%d")
+                resp = await ads_client.get_campaign_stats(ids, today, today)
+                for it in resp.get("items", []) if isinstance(resp, dict) else []:
+                    s = aggregate_stats_item(it)
+                    if s:
+                        spent_today += s.spent_rub
+        except Exception as e:
+            logger.warning(f"spent_today failed: {e}")
 
         return (
-            f"📊 Статус кабинета VK Ads (account_id 30591625):\n"
-            f"- Баланс: {balance_str}\n"
-            f"- Всего кампаний: {total_count}\n"
-            f"- Активных: {active_count}\n"
+            f"📊 Статус кабинета VK Ads (id {settings.vk_ads_account_id}):\n"
+            f"- Потрачено сегодня: {spent_today:.0f}₽ из лимита "
+            f"{settings.max_daily_spend_rub}₽\n"
+            f"- Кампаний всего: {total_count}, активных: {active_count}\n"
+            f"- Баланс: VK не отдаёт через API — смотри в кабинете VK Ads"
         )
     except Exception as e:
         logger.exception("get_account_status failed")
