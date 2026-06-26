@@ -128,6 +128,15 @@ async def send_morning_report(bot: Bot) -> None:
     else:
         lines.append("Средний CPL: _нет написавших_")
 
+    # Шаг C: итоги накопленного опыта + предложение следующего раунда.
+    try:
+        from src.knowledge.round_analyzer import summarize_knowledge
+
+        summary = summarize_knowledge()
+        lines.append(f"\n*Обучение:* {summary['recommendation']}")
+    except Exception as e:
+        logger.warning(f"[Отчёт] round_analyzer недоступен: {e}")
+
     # Анализ Claude — best effort. Если упал, цифры уже собраны выше.
     analysis = await _analyze_morning(stats_list)
     if analysis:

@@ -170,6 +170,7 @@ def test_boba_tools_schema_has_all_tools():
         "recommend_images",
         "launch_ads",
         "stop_ads",
+        "review_results",
     }
     assert tool_names == expected
 
