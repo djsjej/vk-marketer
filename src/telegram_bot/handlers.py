@@ -17,6 +17,11 @@ from telegram import (
 )
 from telegram.ext import ContextTypes
 
+from src.claude_brain.campaign_planner import (
+    CampaignPlanner,
+    PlannerError,
+    format_brief_message,
+)
 from src.claude_brain.copywriter import (
     ClaudeCopywriter,
     CopywriterError,
@@ -97,6 +102,43 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         parse_mode="Markdown",
         reply_markup=markup,
     )
+
+
+async def plan_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """«Новая реклама» (Шаг 1 продукта): тема → какие картинки нужны.
+
+    Vizit пишет `/plan <тема>` (например `/plan поминовение на Радоницу`).
+    Бот разбирает тему и отвечает брифом: 3-4 идеи картинок что прислать +
+    чего избегать. Денег не тратит — это подготовка перед запуском.
+    """
+    theme = " ".join(context.args).strip() if context.args else ""
+    if not theme:
+        await update.message.reply_text(
+            "✍️ Напиши тему после команды.\n\n"
+            "Например: `/plan реклама на сообщения в группе, тема — "
+            "поминовение усопших на Радоницу`\n\n"
+            "Я разберу тему и скажу, какие картинки прислать для теста.",
+            parse_mode="Markdown",
+        )
+        return
+
+    placeholder = await update.message.reply_text("🎨 Разбираю тему, подбираю идеи картинок…")
+    try:
+        brief = await CampaignPlanner().make_brief(theme)
+    except PlannerError as e:
+        logger.warning(f"plan_command: планировщик не сработал: {e}")
+        await placeholder.edit_text(
+            "Не смог разобрать тему сейчас (Claude недоступен). "
+            "Попробуй ещё раз через минуту или пришли фото с темой в подписи — "
+            "соберу объявления напрямую."
+        )
+        return
+    except Exception as e:
+        logger.exception(f"plan_command упал: {e}")
+        await placeholder.edit_text(f"Ошибка: {type(e).__name__}. Попробуй ещё раз.")
+        return
+
+    await placeholder.edit_text(format_brief_message(brief), parse_mode="Markdown")
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
