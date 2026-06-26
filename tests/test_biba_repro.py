@@ -46,10 +46,10 @@ async def test_biba_full_run_all_endpoints_mocked(tmp_path, monkeypatch):
 
     report = await explore(client)
 
-    # Если до сюда дошли — Биба не падает на коде, только проверим количество.
-    assert len(report.findings) == 36, (
-        f"Ожидали 36 endpoints, прошли {len(report.findings)}"
-    )
+    # Если до сюда дошли — Биба не падает на коде. Проверяем что прошли все
+    # эндпоинты из списка (не хардкодим число — список растёт).
+    from src.biba.explorer import ENDPOINTS_TO_EXPLORE
+    assert len(report.findings) == len(ENDPOINTS_TO_EXPLORE)
 
 
 def test_create_findings_archive_packs_all_files(tmp_path):
