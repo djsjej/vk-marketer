@@ -116,12 +116,32 @@ async def get_account_status() -> str:
         except Exception as e:
             logger.warning(f"spent_today failed: {e}")
 
+        # Баланс — со слов Vizit'а (VK не отдаёт по API).
+        from src.db.repository import get_setting
+
+        manual_balance = await get_setting("manual_balance")
+        balance_date = await get_setting("manual_balance_date")
+        if manual_balance:
+            try:
+                bal = float(manual_balance)
+                balance_line = (
+                    f"- Баланс (со слов Vizit'а на {balance_date or '?'}): "
+                    f"{bal:.0f}₽"
+                )
+            except ValueError:
+                balance_line = "- Баланс: VK не отдаёт через API — смотри в кабинете"
+        else:
+            balance_line = (
+                "- Баланс: VK не отдаёт через API. Скажи мне сумму "
+                "(«на балансе X»), и я запомню."
+            )
+
         return (
             f"📊 Статус кабинета VK Ads (id {settings.vk_ads_account_id}):\n"
+            f"{balance_line}\n"
             f"- Потрачено сегодня: {spent_today:.0f}₽ из лимита "
             f"{settings.max_daily_spend_rub}₽\n"
-            f"- Кампаний всего: {total_count}, активных: {active_count}\n"
-            f"- Баланс: VK не отдаёт через API — смотри в кабинете VK Ads"
+            f"- Кампаний всего: {total_count}, активных: {active_count}"
         )
     except Exception as e:
         logger.exception("get_account_status failed")
@@ -629,6 +649,52 @@ async def review_results() -> str:
 
 
 # ============================================================
+# Tool 10: set_balance (Vizit вручную сообщает баланс)
+# ============================================================
+
+SET_BALANCE_SCHEMA = {
+    "name": "set_balance",
+    "description": (
+        "Запоминает баланс кабинета, который Vizit сообщает вручную (VK не "
+        "отдаёт баланс через API). Используй когда Vizit говорит сколько у "
+        "него денег: 'на балансе 5000', 'пополнил до 10000', 'осталось 3200'. "
+        "Бот хранит это число и показывает в статусе вместе с расходом."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "amount_rub": {
+                "type": "number",
+                "description": "Сумма на балансе в рублях (число), со слов Vizit'а.",
+            },
+        },
+        "required": ["amount_rub"],
+    },
+}
+
+
+async def set_balance(amount_rub: float) -> str:
+    """Сохраняет баланс со слов Vizit'а (переживает рестарт)."""
+    try:
+        from datetime import datetime
+
+        from src.db.repository import set_setting
+
+        if amount_rub < 0:
+            return "❌ Баланс не может быть отрицательным."
+        today = datetime.now().strftime("%Y-%m-%d")
+        await set_setting("manual_balance", str(float(amount_rub)))
+        await set_setting("manual_balance_date", today)
+        return (
+            f"Запомнил: баланс {amount_rub:.0f}₽ (на {today}). Буду показывать "
+            f"его в статусе и следить, чтобы не уйти в минус."
+        )
+    except Exception as e:
+        logger.exception("set_balance failed")
+        return f"❌ Не смог запомнить баланс: {type(e).__name__}: {e}"
+
+
+# ============================================================
 # Регистрация всех tools для передачи в Anthropic API
 # ============================================================
 
@@ -642,6 +708,7 @@ BOBA_TOOLS_SCHEMA: list[dict] = [
     LAUNCH_ADS_SCHEMA,
     STOP_ADS_SCHEMA,
     REVIEW_RESULTS_SCHEMA,
+    SET_BALANCE_SCHEMA,
 ]
 """Список tool definitions для передачи в поле tools запроса к Anthropic API."""
 
@@ -656,6 +723,7 @@ _TOOL_DISPATCHER = {
     "recommend_images": recommend_images,
     "stop_ads": stop_ads,
     "review_results": review_results,
+    "set_balance": set_balance,
 }
 
 
