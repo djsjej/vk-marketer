@@ -532,3 +532,19 @@ async def test_stop_ads_no_client():
     with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=None):
         result = await stop_ads("all")
     assert "не настроен" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_get_account_status_shows_today_spend():
+    """Статус показывает расход за сегодня вместо недоступного баланса."""
+    from src.agents.boba_tools import get_account_status
+
+    client = MagicMock()
+    client.get_campaigns = AsyncMock(return_value=[{"id": 1, "status": "active"}])
+    client.get_campaign_stats = AsyncMock(return_value={
+        "items": [{"id": 1, "rows": [{"base": {"shows": 100, "clicks": 5, "spent": "350"}}]}]
+    })
+    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client):
+        result = await get_account_status()
+    assert "Потрачено сегодня" in result
+    assert "350" in result
