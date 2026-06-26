@@ -61,47 +61,33 @@ _CB_CANCEL = "campaign:cancel"
 # ============================================================================
 
 
+def _main_keyboard():
+    """Минимальное меню: всё через Бобу. Лишние кнопки убраны (просьба Vizit'а
+    26.06.2026 — он узнаёт и делает всё через Бобу). «Все команды» — запасной
+    выход на случай если Боба недоступен (например кончились кредиты ИИ)."""
+    from telegram import KeyboardButton, ReplyKeyboardMarkup
+
+    keyboard = [
+        [KeyboardButton("💼 Поговорить с Бобой (CMO)")],
+        [KeyboardButton("📋 Все команды")],
+    ]
+    return ReplyKeyboardMarkup(keyboard, resize_keyboard=True, is_persistent=True)
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Приветствие + сразу показываем меню с кнопками.
 
     На iPhone это первое что видит Vizit — поэтому удобнее всего сразу
     отдать ему меню, а не текстовое описание.
     """
-    from telegram import KeyboardButton, ReplyKeyboardMarkup
-
-    keyboard = [
-        [
-            KeyboardButton("💼 Поговорить с Бобой (CMO)"),
-            KeyboardButton("🔥 Горячая аудитория"),
-        ],
-        [
-            KeyboardButton("🧠 Поговорить с агентом"),
-            KeyboardButton("📊 Статус кабинета"),
-        ],
-        [
-            KeyboardButton("🔧 Проверить VK API"),
-            KeyboardButton("☦️ Православные сообщества"),
-        ],
-        [
-            KeyboardButton("👥 Парсить Верую"),
-            KeyboardButton("👁 Биба-разведчик"),
-        ],
-        [
-            KeyboardButton("📋 Все команды"),
-        ],
-    ]
-    markup = ReplyKeyboardMarkup(
-        keyboard, resize_keyboard=True, is_persistent=True
-    )
-
     await update.message.reply_text(
         "🤖 *Я — твой VK-маркетолог.*\n\n"
-        "Главное: *💼 Поговорить с Бобой* — CMO нашей рекламной "
-        "организации, жёсткий стратег, даёт 3 варианта стратегии с прогнозом. "
-        "Или *🔥 Горячая аудитория* — бот соберёт подписчиков 8 крупных правосл. "
-        "сообществ и найдёт тех кто в 2+ группах одновременно.",
+        "Всё делается через *Бобу* — он управляющий: обсуди с ним рекламу, "
+        "и он сам спросит у команды что нужно (картинки, тексты), запустит, "
+        "будет следить и отключать плохое.\n\n"
+        "Просто нажми *💼 Поговорить с Бобой* и скажи, что хочешь.",
         parse_mode="Markdown",
-        reply_markup=markup,
+        reply_markup=_main_keyboard(),
     )
 
 
@@ -1245,42 +1231,13 @@ async def menu_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
       (поиск «православие», парсинг pomolimsy)
     - Для произвольных аргументов — Vizit вводит /vk_search или /vk_parse вручную
     """
-    from telegram import KeyboardButton, ReplyKeyboardMarkup
-
-    keyboard = [
-        [
-            KeyboardButton("💼 Поговорить с Бобой (CMO)"),
-            KeyboardButton("🔥 Горячая аудитория"),
-        ],
-        [
-            KeyboardButton("🧠 Поговорить с агентом"),
-            KeyboardButton("📊 Статус кабинета"),
-        ],
-        [
-            KeyboardButton("🔧 Проверить VK API"),
-            KeyboardButton("☦️ Православные сообщества"),
-        ],
-        [
-            KeyboardButton("👥 Парсить Верую"),
-            KeyboardButton("👁 Биба-разведчик"),
-        ],
-        [
-            KeyboardButton("📋 Все команды"),
-        ],
-    ]
-    markup = ReplyKeyboardMarkup(
-        keyboard,
-        resize_keyboard=True,  # подгоняет размер кнопок под экран
-        is_persistent=True,    # меню остаётся между сообщениями
-    )
-
     await update.message.reply_text(
-        "🎛 *Меню готово*\n\n"
-        "💼 Боба — CMO рекламной организации, жёсткий стратег. "
-        "🧠 Агент-таргетолог — мягкий советник. "
-        "🔥 Горячая аудитория — сбор автоматом за пару минут.",
+        "🎛 *Меню*\n\n"
+        "Всё через *Бобу* — он управляющий: реклама, статус, запуск, "
+        "выключение, итоги. Просто скажи ему, что нужно.\n\n"
+        "_«Все команды» — на случай если Боба не отвечает._",
         parse_mode="Markdown",
-        reply_markup=markup,
+        reply_markup=_main_keyboard(),
     )
 
 
