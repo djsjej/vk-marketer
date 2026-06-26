@@ -22,6 +22,7 @@ from src.telegram_bot.handlers import (
     handle_text,
     inspect_command,
     kill_bad_command,
+    launch_auto_command,
     launch_batch_command,
     launch_test_command,
     launch_20_command,
@@ -112,6 +113,10 @@ def build_bot() -> Application:
     )
     application.add_handler(
         CommandHandler("launch_20", launch_20_command, filters=owner_filter)
+    )
+    # Шаг 2 продукта: бот сам решает число тестов на минимальных бюджетах.
+    application.add_handler(
+        CommandHandler("launch_auto", launch_auto_command, filters=owner_filter)
     )
     application.add_handler(
         CommandHandler("pause", pause_command, filters=owner_filter)
