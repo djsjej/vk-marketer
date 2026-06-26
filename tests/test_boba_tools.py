@@ -171,6 +171,7 @@ def test_boba_tools_schema_has_all_tools():
         "launch_ads",
         "stop_ads",
         "review_results",
+        "set_balance",
     }
     assert tool_names == expected
 
@@ -548,3 +549,47 @@ async def test_get_account_status_shows_today_spend():
         result = await get_account_status()
     assert "Потрачено сегодня" in result
     assert "350" in result
+
+
+@pytest.mark.asyncio
+async def test_set_balance_stores_value():
+    """set_balance сохраняет сумму через set_setting."""
+    from src.agents.boba_tools import set_balance
+
+    with patch("src.db.repository.set_setting", AsyncMock()) as mock_set:
+        result = await set_balance(5000)
+
+    assert "5000" in result
+    # Сохранили и сумму, и дату
+    saved_keys = {c.args[0] for c in mock_set.await_args_list}
+    assert "manual_balance" in saved_keys
+    assert "manual_balance_date" in saved_keys
+
+
+@pytest.mark.asyncio
+async def test_set_balance_rejects_negative():
+    from src.agents.boba_tools import set_balance
+
+    with patch("src.db.repository.set_setting", AsyncMock()):
+        result = await set_balance(-100)
+    assert "❌" in result
+
+
+@pytest.mark.asyncio
+async def test_status_shows_manual_balance():
+    """Статус показывает запомненный баланс."""
+    from src.agents.boba_tools import get_account_status
+
+    client = MagicMock()
+    client.get_campaigns = AsyncMock(return_value=[{"id": 1, "status": "active"}])
+    client.get_campaign_stats = AsyncMock(return_value={"items": []})
+
+    async def _fake_get(key):
+        return {"manual_balance": "8000.0", "manual_balance_date": "2026-06-26"}.get(key)
+
+    with patch("src.vk_ads.client.VKAdsClient.from_settings", return_value=client), patch(
+        "src.db.repository.get_setting", _fake_get
+    ):
+        result = await get_account_status()
+    assert "8000" in result
+    assert "со слов Vizit" in result

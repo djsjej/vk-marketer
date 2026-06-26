@@ -16,7 +16,9 @@ from __future__ import annotations
 import logging
 from collections.abc import Iterable
 
-from src.db.models import ActionLog, StatsSnapshot
+from sqlalchemy import select
+
+from src.db.models import ActionLog, AppSetting, StatsSnapshot
 from src.db.session import SessionLocal
 
 logger = logging.getLogger(__name__)
@@ -75,3 +77,32 @@ async def log_action(
             await session.commit()
     except Exception:
         logger.exception(f"log_action: не смог записать действие {action}")
+
+
+async def set_setting(key: str, value: str) -> None:
+    """Сохраняет/обновляет key-value настройку (переживает рестарт). Не падает."""
+    try:
+        async with SessionLocal() as session:
+            row = (
+                await session.execute(select(AppSetting).where(AppSetting.key == key))
+            ).scalar_one_or_none()
+            if row is None:
+                session.add(AppSetting(key=key, value=value))
+            else:
+                row.value = value
+            await session.commit()
+    except Exception:
+        logger.exception(f"set_setting: не смог сохранить {key}")
+
+
+async def get_setting(key: str) -> str | None:
+    """Читает key-value настройку. None если нет или ошибка."""
+    try:
+        async with SessionLocal() as session:
+            row = (
+                await session.execute(select(AppSetting).where(AppSetting.key == key))
+            ).scalar_one_or_none()
+            return row.value if row else None
+    except Exception:
+        logger.exception(f"get_setting: не смог прочитать {key}")
+        return None

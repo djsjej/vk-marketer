@@ -52,6 +52,21 @@ class ActionLog(Base):
     auto: Mapped[bool] = mapped_column(default=True)  # автомат или подтверждение
 
 
+class AppSetting(Base):
+    """Простое key-value хранилище мелкого состояния, переживающего рестарт.
+
+    Сейчас используется для баланса, который Vizit сообщает Бобе вручную
+    (VK не отдаёт баланс через API). Ключи: 'manual_balance', 'manual_balance_date'.
+    """
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    key: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    value: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class TokenCache(Base):
     """Кэш OAuth-токенов VK Ads для переживания перезапусков.
 
