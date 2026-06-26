@@ -1176,9 +1176,10 @@ class TestGridPlan:
 
     ages: list[tuple[int, int]]   # возрасты, попавшие в сетку
     variants: int                 # текстов на каждый возраст
+    images: int                   # сколько разных картинок (креативов) тестируем
     per_campaign_rub: int         # бюджет одной кампании в день
     days: int                     # длительность
-    total_campaigns: int          # всего кампаний = len(ages) × variants
+    total_campaigns: int          # всего = images × len(ages) × variants
     total_cost_rub: int           # суммарная стоимость дня
     full_age_coverage: bool       # хватило ли бюджета на ВСЕ возрасты
     note: str                     # человекочитаемое объяснение
@@ -1190,18 +1191,18 @@ def plan_test_grid(
     ages: list[tuple[int, int]],
     per_campaign_rub: int = MIN_TEST_BUDGET_RUB,
     max_variants: int = 5,
+    max_images: int = 4,
     days: int = 1,
 ) -> TestGridPlan:
-    """Сам определяет число тестов под потолок дня на минимальных бюджетах.
+    """Сам определяет сетку тестов под потолок дня на минимальных бюджетах.
 
-    Принцип Vizit'а (INSTRUCTIONS «ПРОДУКТ»): тестируем дёшево, потолок
-    держит дневной рубильник. Логика: каждый тест по `per_campaign_rub`,
-    сетка = все возрасты × сколько влезет вариантов текста, но так чтобы
-    суммарно не пробить `max_daily_spend_rub`.
+    Сетка = картинки × возрасты × тексты. Один креатив — мало для теста,
+    поэтому при наличии бюджета тестируем НЕСКОЛЬКО картинок (приоритет, до
+    max_images), все возрасты, затем тексты. Суммарно не пробиваем
+    `max_daily_spend_rub` (его держит дневной рубильник).
 
-    Если бюджета не хватает даже на по одному тексту на каждый возраст —
-    берём столько возрастов, сколько влезает, и честно помечаем
-    full_age_coverage=False (Vizit'у предложат поднять лимит).
+    Если бюджета не хватает даже на одну картинку × все возрасты — берём
+    столько возрастов, сколько влезает, и помечаем full_age_coverage=False.
     """
     if per_campaign_rub <= 0:
         raise ValueError("per_campaign_rub должен быть > 0")
@@ -1216,37 +1217,34 @@ def plan_test_grid(
             f"тест ({per_campaign_rub}₽). Подними MAX_DAILY_SPEND_RUB."
         )
 
-    variants = min(max_variants, max_campaigns // n_ages)
-    if variants >= 1:
-        used_ages = list(ages)
-        total = n_ages * variants
-        note = (
-            f"{n_ages} возрастов × {variants} текстов = {total} тестов "
-            f"по {per_campaign_rub}₽ = {total * per_campaign_rub}₽ "
-            f"(в пределах лимита {max_daily_spend_rub}₽)"
-        )
-        full = True
-    else:
-        # Бюджета не хватает на все возрасты даже по 1 тексту.
-        variants = 1
+    if max_campaigns < n_ages:
+        # Не хватает даже на все возрасты одной картинкой.
         used_ages = list(ages[:max_campaigns])
         total = len(used_ages)
-        note = (
-            f"Бюджета хватает только на {total} из {n_ages} возрастов "
-            f"(по 1 тексту, {per_campaign_rub}₽ каждый). Подними "
-            f"MAX_DAILY_SPEND_RUB чтобы покрыть все возрасты."
+        return TestGridPlan(
+            ages=used_ages, variants=1, images=1, per_campaign_rub=per_campaign_rub,
+            days=days, total_campaigns=total,
+            total_cost_rub=total * per_campaign_rub * days, full_age_coverage=False,
+            note=(
+                f"Бюджета хватает только на {total} из {n_ages} возрастов "
+                f"(1 картинка, 1 текст). Подними MAX_DAILY_SPEND_RUB."
+            ),
         )
-        full = False
+
+    # Приоритет — несколько картинок (один креатив для теста мало).
+    images = min(max_images, max_campaigns // n_ages)
+    variants = min(max_variants, max(1, max_campaigns // (n_ages * images)))
+    total = images * n_ages * variants
 
     return TestGridPlan(
-        ages=used_ages,
-        variants=variants,
-        per_campaign_rub=per_campaign_rub,
-        days=days,
-        total_campaigns=total,
-        total_cost_rub=total * per_campaign_rub * days,
-        full_age_coverage=full,
-        note=note,
+        ages=list(ages), variants=variants, images=images,
+        per_campaign_rub=per_campaign_rub, days=days, total_campaigns=total,
+        total_cost_rub=total * per_campaign_rub * days, full_age_coverage=True,
+        note=(
+            f"{images} картинок × {n_ages} возрастов × {variants} текстов = "
+            f"{total} тестов по {per_campaign_rub}₽ = {total * per_campaign_rub}₽ "
+            f"(в пределах лимита {max_daily_spend_rub}₽)"
+        ),
     )
 
 

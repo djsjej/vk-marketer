@@ -1779,10 +1779,11 @@ async def _boba_setup_launch(context: ContextTypes.DEFAULT_TYPE, theme: str) -> 
     # своим голосом. Формулируем как «всё посчитано, нужен лишь фото».
     return (
         f"Посчитал сетку по теме «{theme}»: {plan.total_campaigns} тестов "
-        f"({len(plan.ages)} возрастов × {plan.variants} текстов) по "
-        f"{plan.per_campaign_rub}₽ = {plan.total_cost_rub}₽ под дневным "
-        f"лимитом.{coverage} Тексты готовы. Осталось одно: попроси у Vizit'а "
-        f"ОДНО фото — как пришлёт, кампании создадутся."
+        f"({plan.images} картинок × {len(plan.ages)} возрастов × "
+        f"{plan.variants} текстов) по {plan.per_campaign_rub}₽ = "
+        f"{plan.total_cost_rub}₽ под дневным лимитом.{coverage} Тексты готовы. "
+        f"Попроси у Vizit'а {plan.images} фото (разные креативы) — как "
+        f"пришлёт все, кампании создадутся."
     )
 
 
@@ -2937,8 +2938,11 @@ async def launch_auto_command(
         f"— по *{plan.per_campaign_rub}₽* на тест × {plan.days} дн = "
         f"*{plan.total_cost_rub}₽* всего\n"
         f"— тексты свои под каждый возраст (молодым о детях, старшим о внуках)\n"
+        f"— *{plan.images}* разных картин{'ка' if plan.images == 1 else 'ки'} "
+        f"(каждая — отдельный креатив на тест)\n"
         f"{warn}\n"
-        f"📷 Пришли *одно фото* (по идеям из `/plan`) — соберу все тесты на нём.\n\n"
+        f"📷 Пришли *{plan.images} фото* (по идеям из `/plan`), по одному — "
+        f"соберу все тесты.\n\n"
         f"Чтобы отменить — напиши «отмена».",
         parse_mode="Markdown",
     )
@@ -2961,6 +2965,7 @@ async def handle_launch_auto_photo(
         context.user_data["launch_auto_mode"] = False
         return True
 
+    # Скачиваем очередное фото
     photo = update.message.photo[-1]
     try:
         tg_file = await photo.get_file()
@@ -2974,8 +2979,19 @@ async def handle_launch_auto_photo(
         context.user_data["launch_auto_mode"] = False
         return True
 
+    # Копим фото — каждое это отдельный креатив. Запускаем, когда собрали все.
+    photos = context.user_data.setdefault("launch_auto_photos", [])
+    photos.append(image_bytes)
+    needed = max(1, plan.images)
+    if len(photos) < needed:
+        await update.message.reply_text(
+            f"✅ Фото {len(photos)} из {needed} принято. Пришли ещё "
+            f"{needed - len(photos)} (разные креативы).",
+        )
+        return True
+
     await update.message.reply_text(
-        f"✅ Фото принято. Собираю *{plan.total_campaigns} тестов* по "
+        f"✅ Все {needed} фото собраны. Создаю *{plan.total_campaigns} тестов* по "
         f"{plan.per_campaign_rub}₽ — минуту-две. Не отправляй ничего, пока "
         f"не отвечу.",
         parse_mode="Markdown",
@@ -2989,16 +3005,20 @@ async def handle_launch_auto_photo(
             return True
 
         creator = AdCreator(ads_client)
-        images_by_age = {age: image_bytes for age in plan.ages}
         community_url = settings.vk_community_url or "https://vk.com/pomolimsy"
 
-        results = await creator.create_batch_campaigns(
-            images_by_age=images_by_age,
-            copies_by_age=copies_by_age,
-            community_url=community_url,
-            daily_budget_rub_per_campaign=plan.per_campaign_rub,
-            days_duration=plan.days,
-        )
+        # Каждая картинка прогоняется по сетке возраст × текст.
+        results = []
+        for img in photos:
+            images_by_age = {age: img for age in plan.ages}
+            res = await creator.create_batch_campaigns(
+                images_by_age=images_by_age,
+                copies_by_age=copies_by_age,
+                community_url=community_url,
+                daily_budget_rub_per_campaign=plan.per_campaign_rub,
+                days_duration=plan.days,
+            )
+            results.extend(res)
     except Exception as e:
         logger.exception("launch_auto campaigns creation failed")
         await update.message.reply_text(
@@ -3021,7 +3041,8 @@ async def handle_launch_auto_photo(
     )
 
     context.user_data["launch_auto_mode"] = False
-    for k in ("launch_auto_plan", "launch_auto_copies_by_age", "launch_auto_theme"):
+    for k in ("launch_auto_plan", "launch_auto_copies_by_age", "launch_auto_theme",
+              "launch_auto_photos"):
         context.user_data.pop(k, None)
 
     logger.info(f"launch_auto: создано {len(results)}/{plan.total_campaigns} тестов")
