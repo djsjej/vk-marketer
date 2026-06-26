@@ -135,6 +135,9 @@ class Settings(BaseSettings):
     test_campaign_days: int = Field(1)
     hourly_no_click_threshold_rub: int = Field(300)
     auto_launch_limit_rub: int = Field(500)
+    # Шаг A автономии: Сторож сам выключает дорогие по CPL кампании (не только
+    # алертит). Выключатель на случай если нужно вернуть только-алерт режим.
+    auto_stop_enabled: bool = Field(True)
 
     # --- Schedule ---
     morning_report_time: str = Field("09:00")

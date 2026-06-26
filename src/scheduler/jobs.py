@@ -232,8 +232,11 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
     # этого не выявлял аномалии, так как у всех stats.impressions было 0.
     from src.vk_ads.models import aggregate_stats_item
 
+    from src.db.repository import log_action
+
     items = stats_response.get("items", []) if isinstance(stats_response, dict) else []
     snapshots = []  # для записи истории в БД (Трек B)
+    auto_stopped: list[tuple[int, str, str]] = []  # (id, name, reason) — выключены сами
     for item in items:
         stats = aggregate_stats_item(item)
         if stats is None:
@@ -242,10 +245,30 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
         snapshots.append(stats)
 
         decision = check_campaign_anomaly(stats)
-        if decision.action == "alert":
-            alerts.append(
-                (stats.campaign_id, name_by_id.get(stats.campaign_id, "?"), decision.reason)
-            )
+        if decision.action != "alert":
+            continue
+
+        cid = stats.campaign_id
+        name = name_by_id.get(cid, "?")
+
+        # Шаг A автономии: Сторож САМ выключает дорогую кампанию. Пороги
+        # уже консервативны (CPL судим только после 100₽ расхода), пауза
+        # безопасна (только останавливает трату). Если авто-стоп выключен
+        # или пауза не удалась — оставляем как алерт, решает человек.
+        if settings.auto_stop_enabled:
+            try:
+                await client.pause_campaign(cid)
+                await log_action(
+                    "pause", target_id=cid,
+                    reason=f"Авто-стоп Сторожа: {decision.reason[:200]}", auto=True,
+                )
+                auto_stopped.append((cid, name, decision.reason))
+                logger.info(f"[Сторож] Авто-стоп кампании {cid} ({name})")
+                continue
+            except Exception as e:
+                logger.error(f"[Сторож] Не смог авто-выключить {cid}: {e}")
+
+        alerts.append((cid, name, decision.reason))
 
     # Память организации: каждый проход Сторожа фиксируем метрики в БД.
     # Это даёт историю динамики для утреннего отчёта и детекта усталости.
@@ -253,31 +276,38 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
     saved = await save_stats_snapshots(snapshots)
     logger.info(f"[Сторож] Записано снапшотов в БД: {saved}")
 
-    # Сохраняем список «жёлтых» для /kill_bad
+    # Сохраняем список «жёлтых» для /kill_bad (только те что не выключили сами)
     from src.scheduler import bad_campaigns_state
     bad_campaigns_state.set_bad_ids([a[0] for a in alerts])
 
-    if not alerts:
+    if not auto_stopped and not alerts:
         logger.info("[Сторож] Все кампании в норме")
         return
 
-    # Шлём групповое сообщение Vizit'у — человеческий язык (Phase 5.14)
-    lines = [
-        f"🐕 *Сторож докладывает: {len(alerts)} объявлени"
-        f"{'е' if len(alerts) == 1 else 'й' if 2 <= len(alerts) <= 4 else 'й'} "
-        f"работа{'ет' if len(alerts) == 1 else 'ют'} плохо*\n"
-    ]
-    for cid, name, reason in alerts[:15]:  # максимум 15 в одном сообщении
-        lines.append(f"\n`{name}` (`{cid}`)")
-        lines.append(reason)
-    if len(alerts) > 15:
-        lines.append(f"\n_...и ещё {len(alerts) - 15} объявлений с проблемами_")
-    lines.append(
-        f"\n\n*Что можно сделать:*\n"
-        f"• Выключить одно: напиши `/pause <номер>` где <номер> — ID объявления выше\n"
-        f"• Выключить сразу все {len(alerts)} проблемных: `/kill_bad`\n"
-        f"• Ничего не делать — через час я снова посмотрю и напишу опять если ситуация не улучшится"
-    )
+    lines: list[str] = []
+
+    # Что Сторож выключил САМ (Шаг A автономии)
+    if auto_stopped:
+        lines.append(
+            f"🛑 *Сторож сам выключил {len(auto_stopped)} объявлени"
+            f"{'е' if len(auto_stopped) == 1 else 'я' if 2 <= len(auto_stopped) <= 4 else 'й'}* "
+            f"(дорого по CPL / не работают):\n"
+        )
+        for cid, name, reason in auto_stopped[:15]:
+            lines.append(f"\n`{name}` (`{cid}`)")
+            lines.append(reason)
+        if len(auto_stopped) > 15:
+            lines.append(f"\n_...и ещё {len(auto_stopped) - 15}_")
+
+    # Что не смог выключить сам — оставляем человеку
+    if alerts:
+        lines.append(
+            f"\n\n⚠️ *Не смог выключить сам {len(alerts)} — выключи вручную* "
+            f"(`/kill_bad` или `/pause <id>`):\n"
+        )
+        for cid, name, reason in alerts[:15]:
+            lines.append(f"\n`{name}` (`{cid}`)")
+            lines.append(reason)
 
     try:
         await bot.send_message(
@@ -286,7 +316,7 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
             parse_mode="Markdown",
         )
     except Exception as e:
-        logger.error(f"[Сторож] Не смог отправить алерт: {e}")
+        logger.error(f"[Сторож] Не смог отправить отчёт: {e}")
 
 
 async def check_daily_budget(bot: Bot) -> None:
