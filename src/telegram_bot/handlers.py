@@ -1785,11 +1785,56 @@ async def boba_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     )
 
 
+async def _boba_setup_launch(context: ContextTypes.DEFAULT_TYPE, theme: str) -> str:
+    """Рука Тимура: Боба готовит запуск рекламы по теме.
+
+    Считает авто-сетку под дневной лимит на минимальных ставках, пишет
+    тексты и выставляет режим ожидания фото (тот же, что у /launch_auto).
+    Возвращает Бобе текст-итог, чтобы он передал Vizit'у. Реальный запуск
+    произойдёт когда Vizit пришлёт фото (handle_launch_auto_photo).
+    """
+    segments = settings.vk_audience_segment_ids_parsed
+    if not segments:
+        return (
+            "Не могу запустить: в Railway не задан VK_AUDIENCE_SEGMENT_IDS "
+            "(аудитория). Скажи Vizit'у вписать сегмент 80507749."
+        )
+    theme = (theme or "").strip()
+    if not theme:
+        return "Не указана тема — уточни у Vizit'а, про что реклама."
+    try:
+        plan = plan_test_grid(
+            max_daily_spend_rub=settings.max_daily_spend_rub,
+            ages=LAUNCH_20_AGE_ORDER,
+        )
+    except ValueError as e:
+        return f"Бюджет не позволяет запустить: {e}"
+
+    copies = await _generate_auto_copies(theme, plan.variants)
+
+    context.user_data["launch_auto_mode"] = True
+    context.user_data["launch_auto_plan"] = plan
+    context.user_data["launch_auto_copies"] = copies
+    context.user_data["launch_auto_theme"] = theme
+
+    coverage = "" if plan.full_age_coverage else f" ⚠️ {plan.note}"
+    return (
+        f"Готово к запуску по теме «{theme}»: {plan.total_campaigns} тестов "
+        f"({len(plan.ages)} возрастов × {plan.variants} текстов) по "
+        f"{plan.per_campaign_rub}₽ = {plan.total_cost_rub}₽ под дневным "
+        f"лимитом.{coverage} Тексты написал. Передай Vizit'у: пусть пришлёт "
+        f"ОДНО фото — и я всё соберу и запущу."
+    )
+
+
 async def _boba_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
     """Один turn разговора с Бобой. Внутренний хелпер.
 
     Phase 7 (15.05.2026): подключены tools — Боба может сам вызывать
     функции (статус кабинета, парсинг, статистика, чтение/запись базы знаний).
+    Шаг продукта (26.06.2026): рука Тимура — Боба может подготовить запуск
+    рекламы (launch_ads), который требует Telegram-контекста, поэтому
+    оборачиваем общий execute_tool своим исполнителем.
     """
     from src.agents import BOBA_PERSONA
     from src.agents.boba_tools import BOBA_TOOLS_SCHEMA, execute_tool
@@ -1799,13 +1844,20 @@ async def _boba_chat_turn(update: Update, context: ContextTypes.DEFAULT_TYPE, te
 
     history = context.user_data.get("boba_history", [])
 
+    async def _boba_executor(name: str, args: dict) -> str:
+        # launch_ads нуждается в Telegram-контексте (режим ожидания фото) —
+        # его обрабатываем здесь, остальное отдаём общему диспетчеру.
+        if name == "launch_ads":
+            return await _boba_setup_launch(context, args.get("theme", ""))
+        return await execute_tool(name, args)
+
     try:
         agent = DialogAgent(persona=BOBA_PERSONA)
         response = await agent.chat(
             user_message=text,
             history=history,
             tools=BOBA_TOOLS_SCHEMA,
-            tool_executor=execute_tool,
+            tool_executor=_boba_executor,
         )
     except Exception as e:
         logger.exception("Boba chat failed")
