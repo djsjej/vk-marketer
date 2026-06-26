@@ -233,6 +233,7 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
     from src.vk_ads.models import aggregate_stats_item
 
     from src.db.repository import log_action
+    from src.knowledge.recorder import record_campaign_result
 
     items = stats_response.get("items", []) if isinstance(stats_response, dict) else []
     snapshots = []  # для записи истории в БД (Трек B)
@@ -244,12 +245,20 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
 
         snapshots.append(stats)
 
-        decision = check_campaign_anomaly(stats)
-        if decision.action != "alert":
-            continue
-
         cid = stats.campaign_id
         name = name_by_id.get(cid, "?")
+
+        decision = check_campaign_anomaly(stats)
+        if decision.action != "alert":
+            # Шаг B: дешёвую кампанию с реальными конверсиями фиксируем как
+            # рабочую связку (CPL ≤ норма «хорошо» 30₽, есть написавшие).
+            if stats.leads >= 3 and stats.cpl_rub and stats.cpl_rub <= 30:
+                record_campaign_result(
+                    campaign_id=cid, name=name, impressions=stats.impressions,
+                    clicks=stats.clicks, spent_rub=stats.spent_rub, leads=stats.leads,
+                    cpl_rub=stats.cpl_rub, won=True,
+                )
+            continue
 
         # Шаг A автономии: Сторож САМ выключает дорогую кампанию. Пороги
         # уже консервативны (CPL судим только после 100₽ расхода), пауза
@@ -264,6 +273,12 @@ async def check_metrics_and_anomalies(bot: Bot) -> None:
                 )
                 auto_stopped.append((cid, name, decision.reason))
                 logger.info(f"[Сторож] Авто-стоп кампании {cid} ({name})")
+                # Шаг B: провал фиксируем в базу знаний (учимся на ошибках).
+                record_campaign_result(
+                    campaign_id=cid, name=name, impressions=stats.impressions,
+                    clicks=stats.clicks, spent_rub=stats.spent_rub, leads=stats.leads,
+                    cpl_rub=stats.cpl_rub, won=False, reason=decision.reason[:200],
+                )
                 continue
             except Exception as e:
                 logger.error(f"[Сторож] Не смог авто-выключить {cid}: {e}")
